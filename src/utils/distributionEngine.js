@@ -84,10 +84,10 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
               return false;
             }
 
-            // Hard 5: Strict No 1+3 Gap Rule
-            // If proctor is assigned Session 1 today, and does NOT have Session 2 today,
-            // they CANNOT be assigned to Session 3 (to prevent stranded long waiting hours).
-            if (sessionNum === 3) {
+            // Hard 5: Strict No 1+3 Gap Rule (Applies strictly to ACADEMIC staff)
+            // Academic staff travel specifically for proctoring, so a 1+3 gap strands them with hours of idle waiting.
+            // Administrative staff are on campus full-time in their offices, so (Session 1 + Session 3) is completely allowed.
+            if (sessionNum === 3 && proctor.type === 'academic') {
               const todaySessions = proctor.dailySessions[dayDate];
               if (todaySessions && todaySessions.has(1) && !todaySessions.has(2)) {
                 return false;
@@ -209,8 +209,10 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
         if ((has1 && has2) || (has2 && has3)) {
           consecutivePairsCount++;
         } else if (has1 && has3 && !has2) {
-          // This must never happen based on our hard constraint!
-          gapViolationCount++;
+          // Counted as a comfort violation only for Academic staff
+          if (p.type === 'academic') {
+            gapViolationCount++;
+          }
         }
       } else if (count >= 3) {
         threeSessionDaysCount++;
@@ -274,32 +276,44 @@ function calculateCandidateScore(candidate, dayDate, sessionNum) {
   const todaySessions = candidate.dailySessions[dayDate] || new Set();
   const todayCount = candidate.dailySessionCount[dayDate] || 0;
   const remainingQuota = candidate.quota - candidate.assignedCount;
-  const progressRatio = candidate.assignedCount / candidate.quota;
+  const progressRatio = candidate.quota > 0 ? (candidate.assignedCount / candidate.quota) : 1;
 
-  // 1. Academic Priority (+20,000 pts)
-  // Ensures academics are given priority to fulfill their contract load before administrators
+  // 1. Quota Progress Priority (Highest weight to keep all staff progressing evenly)
+  score += (1 - progressRatio) * 15000;
+  score += (remainingQuota * 150);
+
+  // 2. Academic Contract Load Priority (+3,000 pts)
   if (candidate.type === 'academic') {
-    score += 20000;
+    score += 3000;
   }
 
-  // 2. Consecutive Session Pairing Bonus (+15,000 pts)
-  // If in Session 2, and candidate has Session 1 today -> massive bonus to create (1 + 2)
+  // 3. Consecutive Session Pairing Bonus (+12,000 pts)
+  // Favors (1 + 2) or (2 + 3) continuous assignments
   if (sessionNum === 2 && todaySessions.has(1)) {
-    score += 15000;
+    score += 12000;
   }
-  // If in Session 3, and candidate has Session 2 today (and no Session 1) -> massive bonus to create (2 + 3)
   if (sessionNum === 3 && todaySessions.has(2)) {
-    score += 15000;
+    score += 12000;
   }
 
-  // 3. Avoid Single-Session Day Penalty / Bonus
-  // If candidate already has 1 session today, and this session is adjacent, heavily favor pairing them up!
-  // If candidate already has 2 sessions today (Academic taking emergency 3rd session), apply heavy penalty
+  // 4. Administrative Staff: Full-day presence flexibility
+  // Administrative staff are on campus full time, so giving them 1 session per day is natural,
+  // and (Session 1 + Session 3) is completely allowed as they work in their offices during Session 2.
+  if (candidate.type === 'administrative') {
+    if (todayCount === 0) {
+      score += 2000; // Natural steady daily presence across the schedule
+    }
+    if (sessionNum === 3 && todaySessions.has(1)) {
+      score += 5000; // Encourages filling session 3 without idle penalty
+    }
+  }
+
+  // 5. Emergency 3rd Session Demotion (Academics only, last resort)
   if (todayCount >= 2) {
-    score -= 30000; // Demote 3-session days to last resort
+    score -= 30000;
   }
 
-  // 4. Preferred Pair Respect
+  // 6. Preferred Pair Respect
   if (candidate.preferredPair === '1-2') {
     if (sessionNum === 1 || sessionNum === 2) score += 3000;
     if (sessionNum === 3) score -= 8000;
@@ -307,13 +321,6 @@ function calculateCandidateScore(candidate, dayDate, sessionNum) {
     if (sessionNum === 2 || sessionNum === 3) score += 3000;
     if (sessionNum === 1) score -= 8000;
   }
-
-  // 5. Fair Quota Fulfillment Ratio (-5000 * ratio)
-  // Proctors who are behind on their quota percentage are prioritized
-  score -= (progressRatio * 5000);
-
-  // 6. Remaining Quota Weight (+100 * remaining)
-  score += (remainingQuota * 100);
 
   return score;
 }

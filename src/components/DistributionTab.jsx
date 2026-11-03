@@ -102,15 +102,15 @@ export default function DistributionTab({
               <ShieldCheck className="w-4 h-4 text-qou-accent flex-shrink-0" />
               <div>
                 <div className="font-bold text-white text-[11px]">منع فجوة (1 و 3)</div>
-                <div className="text-[10px] text-emerald-200">حظر ترك ج2 فارغة</div>
+                <div className="text-[10px] text-emerald-200">حظر ترك ج2 للأكاديمي</div>
               </div>
             </div>
 
             <div className="bg-white/10 rounded-xl p-2.5 border border-white/15 backdrop-blur-sm flex items-center gap-2">
               <Heart className="w-4 h-4 text-qou-accent flex-shrink-0" />
               <div>
-                <div className="font-bold text-white text-[11px]">سقف الجلسات</div>
-                <div className="text-[10px] text-emerald-200">منع 3 جلسات للإداري</div>
+                <div className="font-bold text-white text-[11px]">مرونة وسقف الإداري</div>
+                <div className="text-[10px] text-emerald-200">إتاحة 1 و 3 وسقف جلستين</div>
               </div>
             </div>
           </div>
