@@ -199,6 +199,38 @@
     line-height: 1.2 !important;
     page-break-inside: avoid !important;
   }
+
+  /* Academic Assistant Dossier Print Mode (A4 Portrait, 1 Page Per Proctor) */
+  body.printing-assistant-dossier .no-print,
+  body.printing-assistant-dossier header,
+  body.printing-assistant-dossier nav {
+    display: none !important;
+  }
+
+  body.printing-assistant-dossier .assistant-dossier-card {
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+    padding: 8mm 6mm !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  body.printing-assistant-dossier .assistant-dossier-card:last-child {
+    page-break-after: auto !important;
+  }
+
+  /* Portal Entry Guide Print Mode (A4 Portrait) */
+  body.printing-portal-entry .portal-day-section {
+    page-break-inside: avoid !important;
+    margin-bottom: 8mm !important;
+  }
+
+  /* Executive Summary Print Mode (A4 Portrait Single Page) */
+  body.printing-executive-summary .executive-summary-print {
+    page-break-inside: avoid !important;
+    padding: 6mm !important;
+  }
 }
 
 @media screen {
