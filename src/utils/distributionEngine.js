@@ -41,6 +41,18 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
   let filledSlots = 0;
   const unassignedSlots = [];
 
+  // Pre-calculate total slots across all days for dynamic academic quota reservation
+  let totalAvailableSlots = 0;
+  days.forEach(day => {
+    (day.sessions || []).forEach(session => {
+      (session.rooms || []).forEach(roomObj => {
+        totalAvailableSlots += Math.max(1, Number(roomObj.capacity) || 1);
+      });
+    });
+  });
+
+  let currentSlotProgress = 0;
+
   // Iterate over each day
   days.forEach((day, dayIndex) => {
     const dayDate = day.date;
@@ -61,48 +73,53 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
 
         for (let slot = 0; slot < capacity; slot++) {
           totalSlots++;
+          currentSlotProgress++;
+          const slotsRemainingAhead = totalAvailableSlots - currentSlotProgress;
+
+          // Dynamic Academic Quota Reservation:
+          // If remaining slots <= total academic quota needed, strictly reserve slots for academics
+          // to guarantee 100% academic fulfillment with zero difference.
+          const totalAcademicQuotaNeeded = activeProctors
+            .filter(p => p.type === 'academic')
+            .reduce((sum, p) => sum + (p.quota - p.assignedCount), 0);
+
+          const reserveStrictlyForAcademics = slotsRemainingAhead <= (totalAcademicQuotaNeeded + 1);
 
           // -------------------------------------------------------------
-          // STEP 1: Filter Candidates Based on Hard Constraints
+          // STEP 1: Filter Candidates Based on Inviolable Constraints
           // -------------------------------------------------------------
           const eligibleCandidates = activeProctors.filter(proctor => {
             // Hard 1: Quota check
             if (proctor.assignedCount >= proctor.quota) return false;
 
-            // Hard 2: No double-booking in this same session
+            // Hard 2: No double-booking in this same session (physically impossible)
             if (proctorsInThisSession.has(proctor.id)) return false;
 
-            // Hard 3: User-defined exceptions check (date_all or date_sX)
+            // Hard 3: User-defined exceptions check (date_all or date_sX) - Inviolable
             const dayWideKey = `${dayDate}_all`;
             const sessionKey = `${dayDate}_s${sessionNum}`;
             if (proctor.exceptions.has(dayWideKey) || proctor.exceptions.has(sessionKey)) {
               return false;
             }
 
-            // Hard 4: Global Session 3 exclusion check
+            // Hard 4: Explicit Session 3 exclusion check - Inviolable
             if (sessionNum === 3 && proctor.excludeSession3) {
               return false;
             }
 
-            // Hard 5: Strict No 1+3 Gap Rule (Applies strictly to ACADEMIC staff)
-            // Academic staff travel specifically for proctoring, so a 1+3 gap strands them with hours of idle waiting.
-            // Administrative staff are on campus full-time in their offices, so (Session 1 + Session 3) is completely allowed.
-            if (sessionNum === 3 && proctor.type === 'academic') {
-              const todaySessions = proctor.dailySessions[dayDate];
-              if (todaySessions && todaySessions.has(1) && !todaySessions.has(2)) {
-                return false;
-              }
+            // Hard 5: Academic Reservation Guard
+            if (reserveStrictlyForAcademics && proctor.type === 'administrative') {
+              return false;
             }
 
-            // Hard 6: Administrative staff hard daily ceiling (Max 2 sessions per day)
+            // Hard 6: Daily session limits
             const todayCount = proctor.dailySessionCount[dayDate] || 0;
-            if (proctor.type === 'administrative' && todayCount >= 2) {
-              return false;
-            }
-
-            // Hard 7: Absolute maximum sessions per day ceiling (never more than 3)
-            if (todayCount >= 3) {
-              return false;
+            if (proctor.type === 'administrative') {
+              // Administrative staff: strict MAX 2 sessions per day (to protect office work)
+              if (todayCount >= 2) return false;
+            } else {
+              // Academic staff: Max 3 sessions per day (permitted when needed to complete 100% quota)
+              if (todayCount >= 3) return false;
             }
 
             return true;
@@ -123,18 +140,9 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
           }
 
           // -------------------------------------------------------------
-          // STEP 2: Partition Normal Candidates vs Emergency 3rd Session Candidates
+          // STEP 2: Candidate Ranking & Selection
           // -------------------------------------------------------------
-          // Proctors with < 2 sessions today are normal candidates.
-          // Academics with == 2 sessions today are ONLY emergency candidates
-          // (used only when no normal candidate is available for this slot).
-          const normalCandidates = eligibleCandidates.filter(p => (p.dailySessionCount[dayDate] || 0) < 2);
-          const candidatesToRank = normalCandidates.length > 0 ? normalCandidates : eligibleCandidates;
-
-          // -------------------------------------------------------------
-          // STEP 3: Fairness & Human-Comfort Scoring
-          // -------------------------------------------------------------
-          candidatesToRank.sort((a, b) => {
+          eligibleCandidates.sort((a, b) => {
             const scoreA = calculateCandidateScore(a, dayDate, sessionNum);
             const scoreB = calculateCandidateScore(b, dayDate, sessionNum);
 
@@ -154,7 +162,7 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
             return Math.random() - 0.5;
           });
 
-          const selected = candidatesToRank[0];
+          const selected = eligibleCandidates[0];
 
           // -------------------------------------------------------------
           // STEP 4: Assign Proctor & Update State

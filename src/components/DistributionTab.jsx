@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Play, CheckCircle2, AlertTriangle, ArrowLeft, RefreshCw, Sparkles, 
-  Building, Users, Calendar, GraduationCap, Briefcase, Clock, ShieldCheck, Heart
+  Building, Users, Calendar, GraduationCap, Briefcase, Clock, ShieldCheck, Heart, Trash2, RotateCcw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { runProctorDistribution } from '../utils/distributionEngine';
@@ -49,6 +49,29 @@ export default function DistributionTab({
         setIsRunning(false);
       }
     }, 400);
+  };
+
+  const handleClearDistribution = () => {
+    const confirmed = window.confirm(
+      'هل أنت متأكد من تصفير وإلغاء التوزيع الحالي وتفريغ كافة القاعات؟\n\nسيتم مسح كافة أسماء المراقبين من القاعات والعودة لنقطة البداية لتتمكن من التوزيع بناءً على أي أرصدة جديدة.'
+    );
+    if (!confirmed) return;
+
+    setScheduleDays(prevDays => {
+      return (prevDays || []).map(day => ({
+        ...day,
+        sessions: (day.sessions || []).map(session => ({
+          ...session,
+          rooms: (session.rooms || []).map(room => ({
+            ...room,
+            assignedProctors: [],
+            proctor: ''
+          }))
+        }))
+      }));
+    });
+
+    setDistributionResult(null);
   };
 
   return (
@@ -152,23 +175,28 @@ export default function DistributionTab({
             </div>
           </div>
 
-          {/* Launch Button */}
-          <div className="pt-2 flex flex-wrap items-center gap-4">
+          {/* Launch & Action Buttons */}
+          <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               type="button"
               disabled={isRunning || activeProctors.length === 0 || totalRoomSlots === 0}
               onClick={handleRunDistribution}
-              className="bg-qou-accent hover:bg-qou-accentDark text-slate-950 font-black text-base px-8 py-4 rounded-2xl shadow-lg shadow-black/20 transition-all transform active:scale-95 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="bg-qou-accent hover:bg-qou-accentDark text-slate-950 font-black text-sm lg:text-base px-7 py-3.5 rounded-2xl shadow-lg shadow-black/20 transition-all transform active:scale-95 flex items-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isRunning ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>جارٍ التوزيع وحساب التوافق الذكي...</span>
+                  <span>جارٍ التوزيع وبناء الجدولة الذكية...</span>
+                </>
+              ) : distributionResult ? (
+                <>
+                  <RefreshCw className="w-5 h-5" />
+                  <span>إعادة التوزيع الآلي (بناءً على الأرصدة الحالية)</span>
                 </>
               ) : (
                 <>
                   <Play className="w-5 h-5 fill-current" />
-                  <span>بدء التوزيع الآلي الآن</span>
+                  <span>بدء التوزيع الآلي الذكي الآن</span>
                 </>
               )}
             </button>
@@ -176,10 +204,23 @@ export default function DistributionTab({
             {distributionResult && (
               <button
                 type="button"
-                onClick={() => setActiveTab('review')}
-                className="bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-6 py-4 rounded-2xl border border-white/20 transition flex items-center gap-2 cursor-pointer"
+                onClick={handleClearDistribution}
+                disabled={isRunning}
+                className="bg-rose-500/20 hover:bg-rose-600/30 text-rose-200 hover:text-white font-bold text-sm px-5 py-3.5 rounded-2xl border border-rose-400/30 transition flex items-center gap-2 cursor-pointer shadow-sm"
+                title="تصفير ومسح كافة تعيينات المراقبين وتفريغ القاعات للبدء من جديد"
               >
-                <span>الانتقال للخطوة 4: المراجعة والتعيين اليدوي</span>
+                <Trash2 className="w-4 h-4 text-rose-300" />
+                <span>تصفير وإلغاء التوزيع</span>
+              </button>
+            )}
+
+            {distributionResult && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('review')}
+                className="bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-6 py-3.5 rounded-2xl border border-white/20 transition flex items-center gap-2 cursor-pointer"
+              >
+                <span>الخطوة 4: المراجعة والتعيين اليدوي</span>
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
