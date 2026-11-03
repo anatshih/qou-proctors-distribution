@@ -299,17 +299,8 @@ export default function ScheduleTab({
 
                             {/* Day and Date */}
                             <td className="py-2 px-3 font-bold text-slate-800 border-l border-slate-200">
-                              {sIdx === 0 ? (
-                                <div>
-                                  <div className="text-slate-900">{day.dayName}</div>
-                                  <div className="text-[11px] font-mono text-slate-500">{day.date}</div>
-                                  <div className="text-[10px] text-qou-primary font-bold mt-0.5 no-print">
-                                    (مجموع اليوم: {dayRoomsTotal} قاعات)
-                                  </div>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 text-[10px]">تابع لنفس اليوم</span>
-                              )}
+                              <div className="text-slate-900 font-extrabold">{day.dayName}</div>
+                              <div className="text-[11px] font-mono text-slate-600 font-semibold">{day.date}</div>
                             </td>
 
                             {/* Session Number */}
