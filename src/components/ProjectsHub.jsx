@@ -64,6 +64,9 @@ export default function ProjectsHub({
         ...p,
         quota: 0,
         isActive: true,
+        type: p.type || 'academic',
+        excludeSession3: Boolean(p.excludeSession3),
+        preferredPair: p.preferredPair || 'any',
         exceptions: []
       })),
       distributionResult: null

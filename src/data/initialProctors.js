@@ -47,5 +47,8 @@ export const INITIAL_PROCTORS = [
   name,
   quota: 0,
   isActive: true,
-  exceptions: [] // array of { date: string, session: number | 'all' } or key string like "date_session"
+  type: 'academic', // 'academic' | 'administrative'
+  excludeSession3: false,
+  preferredPair: 'any', // 'any' | '1-2' | '2-3'
+  exceptions: [] // array of key strings like "date_session"
 }));

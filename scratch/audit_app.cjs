@@ -270,6 +270,8 @@ assert(scheduleTabContent.includes('الانتقال للخطوة 2'), 'وجود
 const proctorsTabPath = path.resolve(__dirname, '../src/components/ProctorsTab.jsx');
 const proctorsTabContent = fs.readFileSync(proctorsTabPath, 'utf8');
 assert(proctorsTabContent.includes('الانتقال للخطوة 3'), 'وجود زر التوجيه للخطوة 3 في أسفل شاشة المراقبين');
+assert(proctorsTabContent.includes('🎓 أكاديمي'), 'وجود تصنيف الكادر الأكاديمي في جدول المراقبين');
+assert(proctorsTabContent.includes('💼 إداري'), 'وجود تصنيف الكادر الإداري في جدول المراقبين');
 
 const navbarPath = path.resolve(__dirname, '../src/components/Navbar.jsx');
 const navbarContent = fs.readFileSync(navbarPath, 'utf8');
@@ -279,18 +281,149 @@ assert(navbarContent.includes('3. التوزيع الآلي الذكي'), 'ال�
 assert(navbarContent.includes('4. النتائج والطباعة المعتمدة'), 'الخطوة 4 مرقمة في شريط التنقل');
 
 // -------------------------------------------------------------
-// Summary
+// TEST SUITE 6: Human-Comfort Proctor Constraints & Smart Heuristics
 // -------------------------------------------------------------
-console.log('\n================================================================');
-console.log(`📊 نتيجة الفحص والتدقيق الإجمالية:`);
-console.log(`   إجمالي الفحوصات: ${totalTests}`);
-console.log(`   الفحوصات الناجحة: ${passedTests}`);
-console.log(`   الفحوصات الفاشلة: ${failedTests}`);
-console.log('================================================================');
+console.log('\n--- 🧠 فحص الخوارزمية الذكية: التتابع، حظر فجوة (1 و 3)، وأولوية الأكاديمي ---');
 
-if (failedTests === 0) {
-  console.log('🎉 النظام سليم 100% وخالٍ من أي تعارضات أو أخطاء برمجية أو انحرافات في القيود!');
-} else {
-  console.error('⚠️ تم العثور على أخطاء تتطلب مراجعة فورية!');
-  process.exit(1);
+async function runAsyncTests() {
+  const enginePath = path.resolve(__dirname, '../src/utils/distributionEngine.js');
+  const { runProctorDistribution } = await import('file:///' + enginePath.replace(/\\/g, '/'));
+
+  // Realistic Exam Day with 3 sessions and multiple halls
+  const examDays = [
+    {
+      dayName: 'السبت',
+      date: '01/06/2026',
+      sessions: [
+        {
+          sessionNumber: 1,
+          rooms: [
+            { room: '101', capacity: 1 },
+            { room: '102', capacity: 1 },
+            { room: '103', capacity: 1 },
+            { room: 'مدرج الشهداء', capacity: 2 }
+          ]
+        },
+        {
+          sessionNumber: 2,
+          rooms: [
+            { room: '101', capacity: 1 },
+            { room: '102', capacity: 1 },
+            { room: '103', capacity: 1 },
+            { room: 'مدرج الشهداء', capacity: 2 }
+          ]
+        },
+        {
+          sessionNumber: 3,
+          rooms: [
+            { room: '101', capacity: 1 },
+            { room: '102', capacity: 1 },
+            { room: '103', capacity: 1 },
+            { room: 'مدرج الشهداء', capacity: 2 }
+          ]
+        }
+      ]
+    },
+    {
+      dayName: 'الأحد',
+      date: '02/06/2026',
+      sessions: [
+        {
+          sessionNumber: 1,
+          rooms: [
+            { room: '101', capacity: 1 },
+            { room: 'مدرج الشهداء', capacity: 2 }
+          ]
+        },
+        {
+          sessionNumber: 2,
+          rooms: [
+            { room: '101', capacity: 1 },
+            { room: 'مدرج الشهداء', capacity: 2 }
+          ]
+        },
+        {
+          sessionNumber: 3,
+          rooms: [
+            { room: '101', capacity: 1 },
+            { room: 'مدرج الشهداء', capacity: 2 }
+          ]
+        }
+      ]
+    }
+  ];
+
+  // Mix of Academic and Administrative proctors
+  const testProctors = [
+    { id: 'acad_1', name: 'د. أكاديمي أول', quota: 6, isActive: true, type: 'academic', exceptions: [] },
+    { id: 'acad_2', name: 'د. أكاديمي ثان', quota: 6, isActive: true, type: 'academic', exceptions: [] },
+    { id: 'acad_3', name: 'أستاذ أكاديمي ثالث', quota: 4, isActive: true, type: 'academic', exceptions: [] },
+    { id: 'acad_no_s3', name: 'أستاذ بدون جلسة 3', quota: 4, isActive: true, type: 'academic', excludeSession3: true, exceptions: [] },
+    { id: 'admin_1', name: 'أ. إداري أول', quota: 4, isActive: true, type: 'administrative', exceptions: [] },
+    { id: 'admin_2', name: 'أ. إداري ثان', quota: 4, isActive: true, type: 'administrative', exceptions: [] }
+  ];
+
+  const distribution = runProctorDistribution(examDays, testProctors);
+
+  assert(distribution.success === true, 'نجاح محرك التوزيع الآلي');
+  assert(distribution.summary.gapViolationCount === 0, 'الالتزام التام بعدم وجود أي فجوة بين جلسة 1 و 3');
+
+  // Verify no administrative proctor ever has 3 sessions in 1 day
+  let adminWith3Sessions = 0;
+  distribution.proctorStats.filter(p => p.type === 'administrative').forEach(p => {
+    const dailyCounts = {};
+    p.assignments.forEach(a => {
+      dailyCounts[a.date] = (dailyCounts[a.date] || 0) + 1;
+    });
+    Object.values(dailyCounts).forEach(cnt => {
+      if (cnt >= 3) adminWith3Sessions++;
+    });
+  });
+  assert(adminWith3Sessions === 0, 'حظر الـ 3 جلسات في يوم واحد للمراقبين الإداريين تماماً');
+
+  // Verify excludeSession3 proctor was never assigned in session 3
+  const noS3Proctor = distribution.proctorStats.find(p => p.id === 'acad_no_s3');
+  const assignedS3Count = noS3Proctor.assignments.filter(a => a.sessionNumber === 3).length;
+  assert(assignedS3Count === 0, 'الاحترام الكامل لاستبعاد الجلسة الثالثة للمراقب (الجلسات 3 المسندة: 0)');
+
+  // Verify consecutive pairings count is positive
+  assert(distribution.summary.consecutivePairsCount > 0, `تشكيل جلسات متتابعة مريحة (1+2 أو 2+3): ${distribution.summary.consecutivePairsCount} ثنائية متصلة`);
+
+  // Verify no 1 and 3 gaps across all proctors
+  let gapFound = false;
+  distribution.proctorStats.forEach(p => {
+    const daysSessions = {};
+    p.assignments.forEach(a => {
+      if (!daysSessions[a.date]) daysSessions[a.date] = new Set();
+      daysSessions[a.date].add(a.sessionNumber);
+    });
+    Object.entries(daysSessions).forEach(([date, set]) => {
+      if (set.has(1) && set.has(3) && !set.has(2)) {
+        gapFound = true;
+      }
+    });
+  });
+  assert(!gapFound, 'التأكد من عدم وجود أي مراقب مسند للجلسة الأولى والثالثة مع ترك الثانية فارغة');
+
+  // -------------------------------------------------------------
+  // Summary
+  // -------------------------------------------------------------
+  console.log('\n================================================================');
+  console.log(`📊 نتيجة الفحص والتدقيق الإجمالية:`);
+  console.log(`   إجمالي الفحوصات: ${totalTests}`);
+  console.log(`   الفحوصات الناجحة: ${passedTests}`);
+  console.log(`   الفحوصات الفاشلة: ${failedTests}`);
+  console.log('================================================================');
+
+  if (failedTests === 0) {
+    console.log('🎉 النظام سليم 100% وخالٍ من أي تعارضات أو أخطاء برمجية أو انحرافات في القيود!');
+  } else {
+    console.error('⚠️ تم العثور على أخطاء تتطلب مراجعة فورية!');
+    process.exit(1);
+  }
 }
+
+runAsyncTests().catch(err => {
+  console.error('Error running async tests:', err);
+  process.exit(1);
+});

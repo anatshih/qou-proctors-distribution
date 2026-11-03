@@ -699,6 +699,7 @@ export default function ResultsTab({
                 <tr className="bg-slate-100 text-slate-800 font-black border-y-2 border-slate-300">
                   <th className="py-2.5 px-3 w-12 text-center border-l border-slate-200">#</th>
                   <th className="py-2.5 px-4 border-l border-slate-200">اسم المراقب</th>
+                  <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">التصنيف</th>
                   <th className="py-2.5 px-3 w-24 text-center border-l border-slate-200">الحالة</th>
                   <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">النصاب المطلوب</th>
                   <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">المنفذ فعلياً</th>
@@ -719,6 +720,15 @@ export default function ResultsTab({
                       </td>
                       <td className="py-2 px-4 font-bold text-slate-800 border-l border-slate-200">
                         {p.name}
+                      </td>
+                      <td className="py-2 px-3 text-center border-l border-slate-200">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          (p.type || 'academic') === 'academic'
+                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {(p.type || 'academic') === 'academic' ? '🎓 أكاديمي' : '💼 إداري'}
+                        </span>
                       </td>
                       <td className="py-2 px-3 text-center border-l border-slate-200">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
