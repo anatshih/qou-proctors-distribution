@@ -629,11 +629,31 @@ export default function ResultsTab({
                           <div className="font-extrabold text-slate-900 text-xs">
                             قاعة {item.room}
                           </div>
-                          {capacity > 1 && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-full font-bold mt-1">
-                              <Users className="w-3 h-3 text-amber-700" />
-                              <span>مراقبَين (2)</span>
-                            </span>
+                          {capacity > 1 ? (
+                            <div className="mt-1 flex flex-col items-center gap-0.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full font-bold border border-amber-300">
+                                <Users className="w-3 h-3 text-amber-700" />
+                                <span>مراقبَين (2)</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCapacity(item.dayIndex, item.sessionNumber, item.roomIndex, 1)}
+                                className="no-print text-[10px] text-slate-400 hover:text-rose-600 transition underline cursor-pointer"
+                                title="تحويل هذه القاعة إلى مراقب واحد فقط"
+                              >
+                                تحويل لـ 1 مراقب
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCapacity(item.dayIndex, item.sessionNumber, item.roomIndex, 2)}
+                              className="no-print mt-1 inline-flex items-center gap-1 text-[10px] text-slate-600 hover:text-qou-primary bg-slate-100 hover:bg-emerald-50 px-2 py-0.5 rounded-full font-bold border border-slate-200 hover:border-emerald-300 transition cursor-pointer shadow-xs"
+                              title="انقر لتحديد أن هذه القاعة تحتاج إلى مراقبَين (2 مراقبين)"
+                            >
+                              <Plus className="w-3 h-3 text-emerald-600" />
+                              <span>+ إضافة مراقب 2</span>
+                            </button>
                           )}
                         </td>
 
