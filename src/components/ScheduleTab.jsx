@@ -353,17 +353,7 @@ export default function ScheduleTab({
                 </table>
               </div>
 
-              {/* Signatures Area for Audit Report */}
-              <div className="pt-8 mt-6 border-t border-slate-300 grid grid-cols-2 text-center text-xs font-bold text-slate-800">
-                <div>
-                  <div>مسؤول تدقيق القاعات والجداول</div>
-                  <div className="mt-8 text-slate-400 font-mono">التوقيع: _______________</div>
-                </div>
-                <div>
-                  <div>رئيس لجنة الامتحانات / عميد الكلية</div>
-                  <div className="mt-8 text-slate-400 font-mono">الختم والاعتماد: _______________</div>
-                </div>
-              </div>
+
 
             </div>
           )}

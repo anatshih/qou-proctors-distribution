@@ -463,21 +463,7 @@ export default function ResultsTab({
           </div>
         )}
 
-        {/* Official Signatures Footer (Visible in Print) */}
-        <div className="pt-8 mt-6 border-t border-slate-300 grid grid-cols-3 text-center text-xs font-bold text-slate-800">
-          <div>
-            <div>مسؤول الجدولة والامتحانات</div>
-            <div className="mt-8 text-slate-400 font-mono">التوقيع: _______________</div>
-          </div>
-          <div>
-            <div>منسق القاعات والمراقبات</div>
-            <div className="mt-8 text-slate-400 font-mono">التوقيع: _______________</div>
-          </div>
-          <div>
-            <div>عميد / رئيس لجنة الامتحانات</div>
-            <div className="mt-8 text-slate-400 font-mono">الختم والتوقيع: _______________</div>
-          </div>
-        </div>
+
 
       </div>
 
