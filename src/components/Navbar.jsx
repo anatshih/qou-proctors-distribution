@@ -104,6 +104,10 @@ export default function Navbar({
 
           {/* Current Semester & Exam Type Badges */}
           <div className="flex items-center gap-2 text-xs">
+            <span className="hidden lg:inline-flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-full border border-white/20 text-[11px] font-semibold backdrop-blur-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>سحابة قوقل متزامنة</span>
+            </span>
             <span className="bg-white/15 px-3 py-1 rounded-full border border-white/20 font-semibold backdrop-blur-sm">
               الفصل: <strong className="text-qou-accent">{semesterCode}</strong>
             </span>

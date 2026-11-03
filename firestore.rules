@@ -1,0 +1,180 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: qou_projects
+// Document ID: {projectId} (matches project.id)
+// Fields:
+//   - id: string (required, 3-120 chars, matches docId, immutable) - unique project identifier
+//   - semesterCode: string (required, 1-20 chars) - academic semester code (e.g. "1261")
+//   - examType: string (required, 2-50 chars) - exam category (e.g. "نصفي", "نهائي")
+//   - scheduleDays: list (required, max 60 days) - array of exam days, sessions, rooms
+//   - totalRoomSlots: number (required, int/float >= 0 and <= 10000) - total supervision slots
+//   - proctors: list (required, max 300 items) - list of proctors with quotas and preferences
+//   - distributionResult: map or null (optional) - output of algorithmic proctor distribution
+//   - createdAt: string or timestamp (optional/required, 3-60 chars if string, immutable)
+//   - updatedAt: string or timestamp (optional, 3-60 chars if string)
+//   - uploadedFileName: string (optional, max 200 chars) - original excel filename
+//   - isUserUploaded: bool (optional) - flag indicating custom excel upload
+//
+// Collection: qou_settings
+// Document ID: {settingId} (1-64 chars)
+// Fields:
+//   - accounts: list (optional, max 50 items) - system user accounts and roles
+//   - semesterCode: string (optional, 1-20 chars) - default system semester
+//   - examType: string (optional, 1-50 chars) - default exam type
+//   - updatedAt: string or timestamp (optional, 3-60 chars if string)
+//   - createdAt: string or timestamp (optional, 3-60 chars if string, immutable)
+//   - version: string (optional, 1-20 chars) - application/schema version
+//   - systemName: string (optional, 1-100 chars) - university branch designation
+//   - maintenanceMode: bool (optional) - maintenance state toggle
+//   - backupMetadata: map (optional) - system backup metadata
+//   - lastBackupDate: string or timestamp (optional, 3-60 chars if string)
+//   - proctorDefaults: list or map (optional) - default proctor template data
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if user is authenticated (reserved for future Auth integration)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if document has all required fields
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Check if document contains only allowed fields (Strict Schema Enforcement)
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that the document hasn't changed in the fields that are not allowed to be changed
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate date or timestamp representation (string or timestamp)
+    function isValidDateOrTimestamp(val) {
+      return val is timestamp || (val is string && val.size() >= 3 && val.size() <= 60);
+    }
+
+    // ===============================================================
+    // Domain Validators (Validator Function Pattern)
+    // Used in BOTH create and update rules to eliminate Update Bypass
+    // ===============================================================
+
+    // Validate qou_projects documents
+    function isValidProject(data, projectId) {
+      let allowedFields = [
+        'id', 'semesterCode', 'examType', 'scheduleDays', 
+        'totalRoomSlots', 'proctors', 'distributionResult', 
+        'createdAt', 'updatedAt', 'uploadedFileName', 'isUserUploaded'
+      ];
+      let requiredFields = [
+        'id', 'semesterCode', 'examType', 'scheduleDays', 
+        'totalRoomSlots', 'proctors'
+      ];
+
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().hasOnly(allowedFields) &&
+             data.id is string &&
+             data.id == projectId &&
+             data.id.size() >= 3 && data.id.size() <= 120 &&
+             data.semesterCode is string &&
+             data.semesterCode.size() >= 1 && data.semesterCode.size() <= 20 &&
+             data.examType is string &&
+             data.examType.size() >= 2 && data.examType.size() <= 50 &&
+             (data.totalRoomSlots is int || data.totalRoomSlots is float) &&
+             data.totalRoomSlots >= 0 && data.totalRoomSlots <= 10000 &&
+             data.scheduleDays is list &&
+             data.scheduleDays.size() <= 60 &&
+             data.proctors is list &&
+             data.proctors.size() <= 300 &&
+             (!('createdAt' in data) || isValidDateOrTimestamp(data.createdAt)) &&
+             (!('updatedAt' in data) || isValidDateOrTimestamp(data.updatedAt)) &&
+             (!('uploadedFileName' in data) || (data.uploadedFileName is string && data.uploadedFileName.size() <= 200)) &&
+             (!('isUserUploaded' in data) || data.isUserUploaded is bool) &&
+             (!('distributionResult' in data) || data.distributionResult == null || data.distributionResult is map);
+    }
+
+    // Validate qou_settings documents
+    function isValidSettings(data, settingId) {
+      let allowedFields = [
+        'accounts', 'semesterCode', 'examType', 'updatedAt', 
+        'createdAt', 'version', 'systemName', 'maintenanceMode', 
+        'backupMetadata', 'lastBackupDate', 'proctorDefaults'
+      ];
+
+      return settingId is string &&
+             settingId.size() >= 1 && settingId.size() <= 64 &&
+             data.keys().hasOnly(allowedFields) &&
+             (!('accounts' in data) || (data.accounts is list && data.accounts.size() <= 50)) &&
+             (!('semesterCode' in data) || (data.semesterCode is string && data.semesterCode.size() >= 1 && data.semesterCode.size() <= 20)) &&
+             (!('examType' in data) || (data.examType is string && data.examType.size() >= 2 && data.examType.size() <= 50)) &&
+             (!('version' in data) || (data.version is string && data.version.size() >= 1 && data.version.size() <= 20)) &&
+             (!('systemName' in data) || (data.systemName is string && data.systemName.size() >= 1 && data.systemName.size() <= 100)) &&
+             (!('maintenanceMode' in data) || data.maintenanceMode is bool) &&
+             (!('backupMetadata' in data) || data.backupMetadata is map) &&
+             (!('proctorDefaults' in data) || data.proctorDefaults is list || data.proctorDefaults is map) &&
+             (!('createdAt' in data) || isValidDateOrTimestamp(data.createdAt)) &&
+             (!('updatedAt' in data) || isValidDateOrTimestamp(data.updatedAt)) &&
+             (!('lastBackupDate' in data) || isValidDateOrTimestamp(data.lastBackupDate));
+    }
+
+    // ===============================================================
+    // Collection Access Rules
+    // ===============================================================
+
+    // Root Default Deny: Deny all reads/writes by default on unspecified paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Exam Projects Collection (qou_projects)
+    match /qou_projects/{projectId} {
+      // Allow read for real-time Firestore synchronization and project viewing
+      allow read: if true;
+
+      // Create: Enforce strict schema validation, ID match, type safety, and size limits
+      allow create: if isValidProject(request.resource.data, projectId);
+
+      // Update: Re-enforce domain validation and protect immutable fields (id, createdAt)
+      allow update: if isValidProject(request.resource.data, projectId) &&
+                       request.resource.data.id == resource.data.id &&
+                       (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+
+      // Delete: Allow deleting user projects, but protect the default template project from deletion
+      allow delete: if resource != null &&
+                       projectId != 'proj_1261_midterm_default' &&
+                       projectId.size() >= 3 && projectId.size() <= 120;
+    }
+
+    // System Settings & Accounts Collection (qou_settings)
+    match /qou_settings/{settingId} {
+      // Allow read for portal configuration and accounts lookup
+      allow read: if true;
+
+      // Create: Enforce strict schema and settings bounds
+      allow create: if isValidSettings(request.resource.data, settingId);
+
+      // Update: Re-enforce domain validation and preserve immutable creation metadata if present
+      allow update: if isValidSettings(request.resource.data, settingId) &&
+                       (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+
+      // Delete: Strictly forbid deletion of system settings to prevent accidental or malicious wipeout
+      allow delete: if false;
+    }
+  }
+}

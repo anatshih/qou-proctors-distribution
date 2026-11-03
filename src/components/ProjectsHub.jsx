@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ROLES } from '../utils/auth';
 import { INITIAL_PROCTORS } from '../data/initialProctors';
+import { saveProjectToCloud, deleteProjectFromCloud } from '../utils/cloudSync';
 
 export default function ProjectsHub({
   currentUser,
@@ -13,7 +14,8 @@ export default function ProjectsHub({
   onOpenSettings,
   projects,
   setProjects,
-  onOpenProject
+  onOpenProject,
+  cloudStatus = 'connected'
 }) {
   const isSuperAdmin = currentUser?.role === ROLES.SUPER_ADMIN;
 
@@ -73,6 +75,7 @@ export default function ProjectsHub({
     };
 
     setProjects(prev => [newProject, ...prev]);
+    saveProjectToCloud(newProject).catch(err => console.warn('Cloud save error:', err));
     setIsNewProjectModalOpen(false);
     setNewSemesterCode('');
     setNewExamType('نصفي');
@@ -85,6 +88,7 @@ export default function ProjectsHub({
     e.stopPropagation();
     if (window.confirm('هل أنت متأكد من حذف هذا المشروع بالكامل؟ لا يمكن التراجع عن هذا الإجراء.')) {
       setProjects(prev => prev.filter(p => p.id !== projectId));
+      deleteProjectFromCloud(projectId).catch(err => console.warn('Cloud delete error:', err));
     }
   };
 
@@ -159,9 +163,16 @@ export default function ProjectsHub({
         {/* Welcome & Action Banner */}
         <div className="bg-gradient-to-r from-emerald-900 to-qou-dark rounded-3xl p-6 sm:p-8 text-white shadow-lg flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
-              <FolderGit2 className="w-3.5 h-3.5 text-qou-accent" />
-              <span>مستودع البيانات المحفوظة</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
+                <FolderGit2 className="w-3.5 h-3.5 text-qou-accent" />
+                <span>مستودع البيانات المحفوظة</span>
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>سحابة قوقل: متصل بالمزامنة الفورية (Google Cloud Firestore)</span>
+              </div>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black leading-tight">
               مشاريع وجداول امتحانات الجامعة

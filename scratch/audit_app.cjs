@@ -44,6 +44,9 @@ const requiredFiles = [
   'src/utils/distributionEngine.js',
   'src/utils/excelHandler.js',
   'src/utils/auth.js',
+  'src/utils/firebase.js',
+  'src/utils/cloudSync.js',
+  'firestore.rules',
   'src/data/initialProctors.js'
 ];
 

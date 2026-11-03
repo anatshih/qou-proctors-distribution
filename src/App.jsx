@@ -11,6 +11,11 @@ import SettingsModal from './components/SettingsModal';
 
 import { INITIAL_PROCTORS } from './data/initialProctors';
 import { getStoredAccounts, saveStoredAccounts } from './utils/auth';
+import { 
+  subscribeToCloudProjects, 
+  saveProjectToCloud, 
+  seedLocalProjectsToCloudIfEmpty 
+} from './utils/cloudSync';
 
 export default function App() {
   // Accounts for authentication
@@ -143,13 +148,38 @@ export default function App() {
     };
   }, [activeProject]);
 
+  const [cloudStatus, setCloudStatus] = useState('connecting');
+
+  // Real-time Cloud Synchronization with Google Cloud Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToCloudProjects(
+      (cloudProjects) => {
+        if (cloudProjects && cloudProjects.length > 0) {
+          setProjects(cloudProjects);
+        } else {
+          // If Firestore is empty, seed existing local projects
+          seedLocalProjectsToCloudIfEmpty(projects);
+        }
+        setCloudStatus('connected');
+      },
+      (err) => {
+        console.warn('Firestore subscription fallback to local storage:', err);
+        setCloudStatus('offline');
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
   // Helper to update fields of the active project
   const updateActiveProject = (updater) => {
     if (!activeProjectId) return;
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
         const updated = typeof updater === 'function' ? updater(p) : { ...p, ...updater };
-        return { ...updated, updatedAt: new Date().toISOString() };
+        const withTimestamp = { ...updated, updatedAt: new Date().toISOString() };
+        saveProjectToCloud(withTimestamp).catch(err => console.warn('Cloud save warning:', err));
+        return withTimestamp;
       }
       return p;
     }));
@@ -170,6 +200,7 @@ export default function App() {
           onOpenSettings={() => setIsSettingsModalOpen(true)}
           projects={projects}
           setProjects={setProjects}
+          cloudStatus={cloudStatus}
           onOpenProject={(id) => {
             setActiveProjectId(id);
             setActiveTab('schedule'); // Jump to schedule tab so user can upload directly!
