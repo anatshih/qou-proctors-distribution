@@ -238,9 +238,15 @@ export function exportProctorsMatrixExcel(proctorStats, days, semesterCode, exam
 
     days.forEach(day => {
       (day.sessions || []).forEach(sess => {
-        const foundRoom = (sess.rooms || []).find(r => r.proctor === p.name);
+        const foundRoom = (sess.rooms || []).find(r => {
+          if (Array.isArray(r.assignedProctors) && r.assignedProctors.includes(p.name)) return true;
+          if (r.proctor === p.name) return true;
+          if (r.proctor && r.proctor.split('/').map(x => x.trim()).includes(p.name)) return true;
+          return false;
+        });
         if (foundRoom) {
-          pRow.push(`قاعة ${foundRoom.room}`);
+          const cap = Math.max(1, Number(foundRoom.capacity) || 1);
+          pRow.push(cap > 1 ? `قاعة ${foundRoom.room} (مشترك)` : `قاعة ${foundRoom.room}`);
         } else {
           pRow.push('-');
         }

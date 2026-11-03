@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Upload, FileSpreadsheet, RotateCcw, CheckCircle, AlertCircle, 
-  Calendar, Building, Trash2, Printer, Eye, FileText, Check
+  Calendar, Building, Trash2, Printer, Eye, FileText, Check, Users
 } from 'lucide-react';
 import { parseUploadedSchedule } from '../utils/excelHandler';
 
@@ -21,8 +21,15 @@ export default function ScheduleTab({
   const [successMsg, setSuccessMsg] = useState('');
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
-  // View mode: 'cards' (interactive) | 'report' (printable audit review table)
-  const [viewMode, setViewMode] = useState('cards');
+  // View mode: 'report' (printable audit review table) | 'cards' (interactive)
+  const [viewMode, setViewMode] = useState('report');
+
+  // Recalculate total slots considering multi-proctor capacities
+  const calcTotalSlots = (days) => {
+    return days.reduce((acc, d) => 
+      acc + (d.sessions || []).reduce((sAcc, s) => 
+        sAcc + (s.rooms || []).reduce((rAcc, r) => rAcc + Math.max(1, Number(r.capacity) || 1), 0), 0), 0);
+  };
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -32,12 +39,13 @@ export default function ScheduleTab({
 
     try {
       const result = await parseUploadedSchedule(file);
+      const computedTotal = calcTotalSlots(result.days);
       setScheduleDays(result.days);
-      setTotalRoomSlots(result.totalSlots);
+      setTotalRoomSlots(computedTotal);
       setUploadedFileName(result.fileName);
-      setSuccessMsg(`تم بنجاح رفع وقراءة جدول القاعات: تم التعرف على ${result.days.length} يوماً و ${result.totalSlots} شاغر قاعة.`);
+      setSuccessMsg(`تم بنجاح رفع وقراءة جدول القاعات: تم التعرف على ${result.days.length} يوماً و ${computedTotal} شاغر مراقبة.`);
       setSelectedDayIdx(0);
-      setViewMode('report'); // Automatically show the review report after upload!
+      setViewMode('report');
     } catch (err) {
       setErrorMsg(err.message || 'حدث خطأ أثناء قراءة ملف الإكسل.');
     } finally {
@@ -62,6 +70,25 @@ export default function ScheduleTab({
       setErrorMsg('');
       setSelectedDayIdx(0);
     }
+  };
+
+  // Toggle room capacity (1 -> 2 -> 1 proctors)
+  const handleToggleRoomCapacity = (dayIndex, sessionNumber, roomIndex) => {
+    setScheduleDays(prev => {
+      const copy = JSON.parse(JSON.stringify(prev));
+      const targetDay = copy[dayIndex];
+      if (!targetDay) return prev;
+      const targetSess = (targetDay.sessions || []).find(s => s.sessionNumber === sessionNumber);
+      if (!targetSess || !targetSess.rooms[roomIndex]) return prev;
+
+      const currentCap = Number(targetSess.rooms[roomIndex].capacity) || 1;
+      const newCap = currentCap === 1 ? 2 : 1;
+      targetSess.rooms[roomIndex].capacity = newCap;
+
+      const newTotal = calcTotalSlots(copy);
+      setTotalRoomSlots(newTotal);
+      return copy;
+    });
   };
 
   const handlePrintReview = () => {
@@ -139,7 +166,7 @@ export default function ScheduleTab({
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-xs text-slate-600 flex items-center gap-1.5">
                   <Building className="w-3.5 h-3.5 text-slate-400" />
-                  إجمالي شواغر القاعات:
+                  إجمالي شواغر المراقبين:
                 </span>
                 <span className="font-black text-qou-primary text-base">
                   {hasSchedule ? `${totalRoomSlots} شاغر` : '0 قاعة'}
@@ -195,6 +222,12 @@ export default function ScheduleTab({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Multi-Proctor Tip */}
+              <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl font-medium hidden sm:flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                <span>انقر على أي قاعة لتحديد حاجتها لمراقبَين (2 مراقبين)</span>
+              </div>
+
               {/* View Mode Toggle */}
               <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
                 <button
@@ -205,7 +238,7 @@ export default function ScheduleTab({
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>تقرير المراجعة والتدقيق (شامل)</span>
+                  <span>تقرير المراجعة والتدقيق</span>
                 </button>
                 <button
                   type="button"
@@ -215,7 +248,7 @@ export default function ScheduleTab({
                   }`}
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  <span>استعراض البطاقات اليومية</span>
+                  <span>استعراض البطاقات</span>
                 </button>
               </div>
 
@@ -265,7 +298,7 @@ export default function ScheduleTab({
                   <div className="text-left text-xs text-slate-500 space-y-1">
                     <div>التاريخ: <strong>{new Date().toLocaleDateString('ar-EG')}</strong></div>
                     <div>إجمالي الأيام: <strong>{scheduleDays.length} يوماً</strong></div>
-                    <div>إجمالي القاعات: <strong className="text-qou-primary font-bold">{totalRoomSlots} شاغر</strong></div>
+                    <div>شواغر المراقبين المطلوبة: <strong className="text-qou-primary font-bold">{totalRoomSlots} شاغر</strong></div>
                   </div>
                 </div>
               </div>
@@ -278,17 +311,18 @@ export default function ScheduleTab({
                       <th className="py-2.5 px-3 w-12 text-center border-l border-slate-200">#</th>
                       <th className="py-2.5 px-3 w-40 border-l border-slate-200">اليوم والتاريخ</th>
                       <th className="py-2.5 px-3 w-24 text-center border-l border-slate-200">رقم الجلسة</th>
-                      <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">عدد القاعات</th>
-                      <th className="py-2.5 px-4 border-l border-slate-200">أرقام القاعات المفتوحة بالجلسة</th>
+                      <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">شواغر الجلسة</th>
+                      <th className="py-2.5 px-4 border-l border-slate-200">أرقام القاعات المفتوحة (انقر لتحديد 2 مراقبين)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {scheduleDays.map((day, dIdx) => {
                       const sessions = day.sessions || [];
-                      const dayRoomsTotal = sessions.reduce((acc, s) => acc + (s.rooms || []).length, 0);
 
                       return sessions.map((sess, sIdx) => {
-                        const roomNumbers = (sess.rooms || []).map(r => r.room).join(' ، ');
+                        const sessRequiredProctors = (sess.rooms || []).reduce(
+                          (acc, r) => acc + Math.max(1, Number(r.capacity) || 1), 0
+                        );
 
                         return (
                           <tr key={`${dIdx}_${sIdx}`} className="hover:bg-slate-50 transition">
@@ -297,7 +331,7 @@ export default function ScheduleTab({
                               {dIdx + 1}.{sIdx + 1}
                             </td>
 
-                            {/* Day and Date */}
+                            {/* Day and Date explicitly on every row */}
                             <td className="py-2 px-3 font-bold text-slate-800 border-l border-slate-200">
                               <div className="text-slate-900 font-extrabold">{day.dayName}</div>
                               <div className="text-[11px] font-mono text-slate-600 font-semibold">{day.date}</div>
@@ -310,15 +344,46 @@ export default function ScheduleTab({
                               </span>
                             </td>
 
-                            {/* Rooms count in session */}
+                            {/* Rooms / Proctors count in session */}
                             <td className="py-2 px-3 text-center font-bold text-qou-primary border-l border-slate-200">
-                              {(sess.rooms || []).length} قاعات
+                              {sessRequiredProctors} مراقب
+                              <span className="text-[10px] text-slate-400 block font-normal">
+                                ({(sess.rooms || []).length} قاعات)
+                              </span>
                             </td>
 
-                            {/* Formatted Rooms List */}
+                            {/* Formatted Rooms List with Clickable Multi-Proctor Badge */}
                             <td className="py-2 px-4 border-l border-slate-200">
-                              <div className="font-mono text-xs font-semibold text-slate-800 leading-relaxed">
-                                {roomNumbers || '-'}
+                              <div className="flex flex-wrap gap-1.5 items-center">
+                                {(sess.rooms || []).map((r, rIdx) => {
+                                  const cap = Math.max(1, Number(r.capacity) || 1);
+                                  const isMulti = cap > 1;
+
+                                  return (
+                                    <button
+                                      key={rIdx}
+                                      type="button"
+                                      onClick={() => handleToggleRoomCapacity(dIdx, sess.sessionNumber, rIdx)}
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition border cursor-pointer ${
+                                        isMulti
+                                          ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-sm'
+                                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                                      }`}
+                                      title="انقر للتبديل بين (مراقب واحد [1]) أو (مراقبَين [2]) لهذه القاعة"
+                                    >
+                                      <span>قاعة {r.room}</span>
+                                      {isMulti ? (
+                                        <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-sans font-bold">
+                                          2 مراقبين
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-400 no-print">
+                                          (1)
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </td>
                           </tr>
@@ -331,7 +396,7 @@ export default function ScheduleTab({
                   <tfoot>
                     <tr className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-300">
                       <td colSpan="3" className="py-3 px-4 text-left border-l border-slate-200">
-                        الإجمالي الكلي لشواغر القاعات:
+                        الإجمالي الكلي لشواغر المراقبة المطلوبة:
                       </td>
                       <td className="py-3 px-3 text-center text-qou-primary text-sm font-black border-l border-slate-200">
                         {totalRoomSlots} شاغر
@@ -343,8 +408,6 @@ export default function ScheduleTab({
                   </tfoot>
                 </table>
               </div>
-
-
 
             </div>
           )}
@@ -416,15 +479,31 @@ export default function ScheduleTab({
                         </div>
 
                         <div className="flex flex-wrap gap-1.5">
-                          {(sess.rooms || []).map((r, rIdx) => (
-                            <span
-                              key={rIdx}
-                              className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 hover:bg-white transition"
-                              title={r.proctor ? `المراقب: ${r.proctor}` : 'شاغر لم يحدد بعد'}
-                            >
-                              قاعة {r.room}
-                            </span>
-                          ))}
+                          {(sess.rooms || []).map((r, rIdx) => {
+                            const cap = Math.max(1, Number(r.capacity) || 1);
+                            const isMulti = cap > 1;
+
+                            return (
+                              <button
+                                key={rIdx}
+                                type="button"
+                                onClick={() => handleToggleRoomCapacity(selectedDayIdx, sess.sessionNumber, rIdx)}
+                                className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 cursor-pointer ${
+                                  isMulti
+                                    ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-sm'
+                                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-white'
+                                }`}
+                                title="انقر للتبديل بين 1 و 2 مراقبين لهذه القاعة"
+                              >
+                                <span>قاعة {r.room}</span>
+                                {isMulti && (
+                                  <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                                    2 مراقبين
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}

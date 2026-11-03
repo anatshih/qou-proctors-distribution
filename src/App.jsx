@@ -255,6 +255,12 @@ export default function App() {
         {activeTab === 'results' && (
           <ResultsTab
             scheduleDays={activeProject.scheduleDays || []}
+            setScheduleDays={(newDays) => {
+              updateActiveProject(prev => ({
+                ...prev,
+                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+              }));
+            }}
             proctors={activeProject.proctors || []}
             distributionResult={activeProject.distributionResult}
             semesterCode={activeProject.semesterCode}

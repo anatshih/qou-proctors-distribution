@@ -1,6 +1,7 @@
 /**
  * Smart Proctor Distribution Engine
- * Developed for Al-Quds Open University
+ * Supports Multi-Proctor per Room & Fair Scheduling
+ * Al-Quds Open University - Hebron Branch
  */
 
 export function runProctorDistribution(scheduleDays, proctorsList) {
@@ -16,7 +17,7 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       quota: Number(p.quota),
       assignedCount: 0,
       exceptions: new Set(p.exceptions || []),
-      assignments: [], // { dayIndex, date, dayName, sessionNumber, room }
+      assignments: [], // { dayIndex, date, dayName, sessionNumber, room, slotIndex }
       daysWorked: new Set(),
       dailySessionCount: {} // date -> count
     }));
@@ -34,96 +35,104 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
     (day.sessions || []).forEach(session => {
       const sessionNum = session.sessionNumber;
       
-      // Keep track of proctors already assigned in this specific session
+      // Proctors already assigned in this specific session
       const proctorsInThisSession = new Set();
 
       (session.rooms || []).forEach(roomObj => {
-        totalSlots++;
+        // Multi-proctor support: check capacity (default to 1)
+        const capacity = Math.max(1, Number(roomObj.capacity) || 1);
+        roomObj.capacity = capacity;
+        roomObj.assignedProctors = [];
 
-        // Candidate pool for this room
-        const candidates = activeProctors.filter(proctor => {
-          // 1. Quota check
-          if (proctor.assignedCount >= proctor.quota) return false;
+        for (let slot = 0; slot < capacity; slot++) {
+          totalSlots++;
 
-          // 2. Conflict check: Not already in this session
-          if (proctorsInThisSession.has(proctor.id)) return false;
+          // Candidate pool for this room slot
+          const candidates = activeProctors.filter(proctor => {
+            // 1. Quota check
+            if (proctor.assignedCount >= proctor.quota) return false;
 
-          // 3. Exception check
-          // Check for day-wide exception or specific session exception
-          const dayWideKey = `${dayDate}_all`;
-          const sessionKey = `${dayDate}_s${sessionNum}`;
-          if (proctor.exceptions.has(dayWideKey) || proctor.exceptions.has(sessionKey)) {
-            return false;
+            // 2. Conflict check: Not already in this session
+            if (proctorsInThisSession.has(proctor.id)) return false;
+
+            // 3. Exception check
+            const dayWideKey = `${dayDate}_all`;
+            const sessionKey = `${dayDate}_s${sessionNum}`;
+            if (proctor.exceptions.has(dayWideKey) || proctor.exceptions.has(sessionKey)) {
+              return false;
+            }
+
+            return true;
+          });
+
+          if (candidates.length === 0) {
+            unassignedSlots.push({
+              date: dayDate,
+              dayName: dayName,
+              session: sessionNum,
+              room: roomObj.room,
+              slotIndex: slot + 1,
+              reason: activeProctors.every(p => p.assignedCount >= p.quota)
+                ? 'استنفاد جميع أنصبة المراقبين'
+                : 'تعارض في الجلسة أو استثناءات للمراقبين المتاحين'
+            });
+            continue;
           }
 
-          return true;
-        });
+          // Fairness ranking
+          candidates.sort((a, b) => {
+            // Criterion 1: Percentage of quota filled
+            const ratioA = a.assignedCount / a.quota;
+            const ratioB = b.assignedCount / b.quota;
+            if (Math.abs(ratioA - ratioB) > 0.08) {
+              return ratioA - ratioB;
+            }
 
-        if (candidates.length === 0) {
-          // Cannot fill this room slot
-          roomObj.proctor = "";
-          unassignedSlots.push({
+            // Criterion 2: Workload today
+            const todayCountA = a.dailySessionCount[dayDate] || 0;
+            const todayCountB = b.dailySessionCount[dayDate] || 0;
+            if (todayCountA !== todayCountB) {
+              return todayCountA - todayCountB;
+            }
+
+            // Criterion 3: Total remaining quota needed
+            const remainingA = a.quota - a.assignedCount;
+            const remainingB = b.quota - b.assignedCount;
+            if (remainingA !== remainingB) {
+              return remainingB - remainingA;
+            }
+
+            // Criterion 4: Tie breaker
+            return Math.random() - 0.5;
+          });
+
+          const selected = candidates[0];
+
+          // Assign
+          roomObj.assignedProctors.push(selected.name);
+          selected.assignedCount++;
+          proctorsInThisSession.add(selected.id);
+          selected.daysWorked.add(dayDate);
+          selected.dailySessionCount[dayDate] = (selected.dailySessionCount[dayDate] || 0) + 1;
+          selected.assignments.push({
+            dayIndex,
             date: dayDate,
             dayName: dayName,
-            session: sessionNum,
+            sessionNumber: sessionNum,
             room: roomObj.room,
-            reason: activeProctors.every(p => p.assignedCount >= p.quota)
-              ? 'استنفاد جميع أنصبة المراقبين'
-              : 'تعارض في الجلسة أو استثناءات للمراقبين المتاحين'
+            slotIndex: slot + 1
           });
-          return;
+
+          filledSlots++;
         }
 
-        // Rank candidates based on fairness score:
-        // Lower score = better candidate
-        candidates.sort((a, b) => {
-          // Criterion 1: Percentage of quota filled (encourage balanced progression)
-          const ratioA = a.assignedCount / a.quota;
-          const ratioB = b.assignedCount / b.quota;
-          if (Math.abs(ratioA - ratioB) > 0.08) {
-            return ratioA - ratioB;
-          }
-
-          // Criterion 2: Workload today (prefer proctor who hasn't worked today or worked fewer sessions today)
-          const todayCountA = a.dailySessionCount[dayDate] || 0;
-          const todayCountB = b.dailySessionCount[dayDate] || 0;
-          if (todayCountA !== todayCountB) {
-            return todayCountA - todayCountB;
-          }
-
-          // Criterion 3: Total remaining quota needed
-          const remainingA = a.quota - a.assignedCount;
-          const remainingB = b.quota - b.assignedCount;
-          if (remainingA !== remainingB) {
-            return remainingB - remainingA; // Higher remaining gets priority
-          }
-
-          // Criterion 4: Slight pseudo-random tie breaker
-          return Math.random() - 0.5;
-        });
-
-        const selected = candidates[0];
-
-        // Assign
-        roomObj.proctor = selected.name;
-        selected.assignedCount++;
-        proctorsInThisSession.add(selected.id);
-        selected.daysWorked.add(dayDate);
-        selected.dailySessionCount[dayDate] = (selected.dailySessionCount[dayDate] || 0) + 1;
-        selected.assignments.push({
-          dayIndex,
-          date: dayDate,
-          dayName: dayName,
-          sessionNumber: sessionNum,
-          room: roomObj.room
-        });
-
-        filledSlots++;
+        // Keep single string proctor property synchronized for backwards compatibility
+        roomObj.proctor = roomObj.assignedProctors.join(' / ');
       });
     });
   });
 
-  // Calculate statistics for all proctors (including inactive and zero-quota ones)
+  // Calculate statistics for all proctors
   const proctorStats = proctorsList.map(original => {
     const matched = activeProctors.find(p => p.id === original.id);
     const assigned = matched ? matched.assignedCount : 0;
