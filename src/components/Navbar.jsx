@@ -29,7 +29,7 @@ export default function Navbar({
           {/* Logo & University Name */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white p-0.5 shadow-md flex items-center justify-center overflow-hidden flex-shrink-0">
-              <img src="/logo.png" alt="شعار جامعة القدس المفتوحة" className="w-full h-full object-contain" />
+              <img src="./logo.png" alt="شعار جامعة القدس المفتوحة" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="font-bold text-base lg:text-lg leading-tight tracking-wide">

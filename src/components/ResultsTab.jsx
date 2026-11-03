@@ -307,7 +307,7 @@ export default function ResultsTab({
             {/* Center: Title / Proctors Badge */}
             <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-1 flex items-center justify-center">
-                <img src="/logo.png" alt="شعار الجامعة" className="w-full h-full object-contain" />
+                <img src="./logo.png" alt="شعار الجامعة" className="w-full h-full object-contain" />
               </div>
               <div className="text-sm font-black text-slate-900">
                 {selectedProctor ? (
