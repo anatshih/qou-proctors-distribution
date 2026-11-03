@@ -204,11 +204,11 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
 
         pairCandidates.sort((a, b) => {
           const pairName = sA_num === 1 ? '1-2' : '2-3';
-          const prefA = a.preferredPair === pairName ? 10 : (a.preferredPair === 'any' ? 5 : 2);
-          const prefB = b.preferredPair === pairName ? 10 : (b.preferredPair === 'any' ? 5 : 2);
-
           const remA = a.quota - a.assignedCount;
           const remB = b.quota - b.assignedCount;
+
+          const prefA = a.preferredPair === pairName ? 20 : (a.preferredPair === 'any' ? 10 : (remA >= 2 ? 8 : 2));
+          const prefB = b.preferredPair === pairName ? 20 : (b.preferredPair === 'any' ? 10 : (remB >= 2 ? 8 : 2));
 
           const scoreA = (prefA * 1000) + (remA * 50);
           const scoreB = (prefB * 1000) + (remB * 50);
@@ -245,7 +245,7 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
   // an isolated single-session day and reducing attendance days by 1!
   // -------------------------------------------------------------
   const academicsNeedingSingle = activeProctors.filter(
-    p => p.type === 'academic' && (p.quota - p.assignedCount) === 1 && !p.excludeSession3
+    p => p.type === 'academic' && ((p.quota - p.assignedCount) % 2 === 1) && !p.excludeSession3
   );
 
   academicsNeedingSingle.forEach(p => {
