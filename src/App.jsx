@@ -9,7 +9,6 @@ import ResultsTab from './components/ResultsTab';
 import SettingsModal from './components/SettingsModal';
 
 import { INITIAL_PROCTORS } from './data/initialProctors';
-import { DEFAULT_SCHEDULE, DEFAULT_TOTAL_SLOTS } from './data/defaultSchedule';
 import { getStoredAccounts, saveStoredAccounts } from './utils/auth';
 
 export default function App() {
@@ -34,18 +33,33 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('proctors');
 
   // Projects Repository (Multi-Project storage)
+  // Cleaned: Project 1261 Midterm has EMPTY rooms (0 slots) waiting for file upload
   const [projects, setProjects] = useState(() => {
     try {
       const stored = localStorage.getItem('qou_all_projects');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // If the default project has old preloaded rooms, ensure it is emptied as requested
+          return parsed.map(p => {
+            if (p.id === 'proj_1261_midterm_default' && p.scheduleDays && p.scheduleDays.length > 0 && !p.isUserUploaded) {
+              return {
+                ...p,
+                scheduleDays: [],
+                totalRoomSlots: 0,
+                uploadedFileName: '',
+                distributionResult: null
+              };
+            }
+            return p;
+          });
+        }
       }
     } catch (e) {
       console.error(e);
     }
 
-    // Default Seed Project: Semester 1261 Midterm
+    // Default Project: Semester 1261 Midterm (Clean & Empty rooms, ready for testing upload)
     return [
       {
         id: 'proj_1261_midterm_default',
@@ -53,9 +67,9 @@ export default function App() {
         examType: 'نصفي',
         createdAt: '3 نوفمبر 2026',
         updatedAt: new Date().toISOString(),
-        scheduleDays: DEFAULT_SCHEDULE,
-        totalRoomSlots: DEFAULT_TOTAL_SLOTS,
-        uploadedFileName: 'توزيع المراقبين 1261.xlsx (الجدول المعتمد)',
+        scheduleDays: [],
+        totalRoomSlots: 0,
+        uploadedFileName: '',
         proctors: INITIAL_PROCTORS.map(p => ({
           ...p,
           quota: 0,
@@ -134,7 +148,7 @@ export default function App() {
           setProjects={setProjects}
           onOpenProject={(id) => {
             setActiveProjectId(id);
-            setActiveTab('proctors');
+            setActiveTab('schedule'); // Jump to schedule tab so user can upload directly!
           }}
         />
 
@@ -148,7 +162,7 @@ export default function App() {
           setExamType={() => {}}
           proctors={INITIAL_PROCTORS}
           setProctors={() => {}}
-          scheduleDays={DEFAULT_SCHEDULE}
+          scheduleDays={[]}
           setScheduleDays={() => {}}
           setTotalRoomSlots={() => {}}
           setDistributionResult={() => {}}
@@ -193,14 +207,15 @@ export default function App() {
           />
         )}
 
-        {/* Tab 2: Exam Rooms Schedule for this project */}
+        {/* Tab 2: Exam Rooms Schedule for this project (With Audit Report & Reset) */}
         {activeTab === 'schedule' && (
           <ScheduleTab
             scheduleDays={activeProject.scheduleDays || []}
             setScheduleDays={(newDays) => {
               updateActiveProject(prev => ({
                 ...prev,
-                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays,
+                isUserUploaded: true
               }));
             }}
             totalRoomSlots={activeProject.totalRoomSlots || 0}
@@ -211,6 +226,8 @@ export default function App() {
             setUploadedFileName={(name) => {
               updateActiveProject({ uploadedFileName: name });
             }}
+            semesterCode={activeProject.semesterCode}
+            examType={activeProject.examType}
           />
         )}
 
