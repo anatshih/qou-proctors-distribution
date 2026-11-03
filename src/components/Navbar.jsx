@@ -1,10 +1,11 @@
 import React from 'react';
-import { ShieldCheck, UserCheck, Settings, LogOut, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, UserCheck, Settings, LogOut, ArrowRight, FolderGit2 } from 'lucide-react';
 import { ROLES } from '../utils/auth';
 
 export default function Navbar({ 
   currentUser, 
-  onSwitchUser, 
+  onLogout,
+  onBackToHub,
   activeTab, 
   setActiveTab,
   semesterCode,
@@ -26,17 +27,28 @@ export default function Navbar({
       <div className="bg-qou-primary text-white px-4 lg:px-8 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           
-          {/* Logo & University Name */}
+          {/* Logo & University Name & Back to Projects Button */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white p-0.5 shadow-md flex items-center justify-center overflow-hidden flex-shrink-0">
+            <button
+              type="button"
+              onClick={onBackToHub}
+              className="bg-white/15 hover:bg-white/25 text-white text-xs font-black px-3 py-1.5 rounded-xl border border-white/20 transition flex items-center gap-1.5 shadow-sm"
+              title="العودة إلى مستودع المشاريع والفصول"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              <span>مستودع المشاريع</span>
+            </button>
+
+            <div className="w-8 h-8 rounded-full bg-white p-0.5 shadow-md flex items-center justify-center overflow-hidden flex-shrink-0">
               <img src="./logo.png" alt="شعار جامعة القدس المفتوحة" className="w-full h-full object-contain" />
             </div>
-            <div>
-              <h1 className="font-bold text-base lg:text-lg leading-tight tracking-wide">
+
+            <div className="hidden md:block">
+              <h1 className="font-extrabold text-sm leading-tight tracking-wide">
                 جامعة القدس المفتوحة
               </h1>
-              <p className="text-xs text-emerald-100 font-medium">
-                نظام التوزيع الذكي لمراقبات الامتحانات
+              <p className="text-[11px] text-emerald-100 font-medium">
+                نظام التوزيع الذكي للمراقبات
               </p>
             </div>
           </div>
@@ -51,7 +63,7 @@ export default function Navbar({
             </span>
           </div>
 
-          {/* User Profile & Role Switcher */}
+          {/* User Profile & Actions */}
           <div className="flex items-center gap-3">
             <div className="text-left hidden sm:block">
               <div className="text-xs font-bold leading-tight">{currentUser?.name}</div>
@@ -65,26 +77,28 @@ export default function Navbar({
               </div>
             </div>
 
-            {/* Quick Switch Button */}
-            <button
-              onClick={onSwitchUser}
-              className="text-xs bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-lg border border-white/20 transition flex items-center gap-1.5"
-              title="تبديل الحساب (مدير النظام / مسؤول الامتحانات)"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">تبديل الحساب</span>
-            </button>
-
-            {/* Settings button (available for Super Admin) */}
+            {/* Settings button for Super Admin */}
             {isSuperAdmin && (
               <button
+                type="button"
                 onClick={onOpenSettings}
-                className="bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 p-1.5 rounded-lg border border-amber-300/30 transition"
-                title="إعدادات النظام والفصل"
+                className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition"
+                title="إعدادات النظام والحسابات"
               >
                 <Settings className="w-4 h-4" />
               </button>
             )}
+
+            {/* Logout button */}
+            <button
+              type="button"
+              onClick={onLogout}
+              className="bg-rose-600/80 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+              title="تسجيل الخروج"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">خروج</span>
+            </button>
           </div>
         </div>
       </div>
@@ -98,7 +112,7 @@ export default function Navbar({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all whitespace-nowrap ${
                   isActive
                     ? 'bg-qou-primary text-white shadow-sm shadow-qou-primary/30'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'

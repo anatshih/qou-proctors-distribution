@@ -1,182 +1,247 @@
 import React, { useState, useEffect } from 'react';
+import LoginPage from './components/LoginPage';
+import ProjectsHub from './components/ProjectsHub';
 import Navbar from './components/Navbar';
 import ProctorsTab from './components/ProctorsTab';
 import ScheduleTab from './components/ScheduleTab';
 import DistributionTab from './components/DistributionTab';
 import ResultsTab from './components/ResultsTab';
 import SettingsModal from './components/SettingsModal';
-import LoginModal from './components/LoginModal';
 
 import { INITIAL_PROCTORS } from './data/initialProctors';
 import { DEFAULT_SCHEDULE, DEFAULT_TOTAL_SLOTS } from './data/defaultSchedule';
-import { getStoredUser, getStoredAccounts, saveStoredAccounts, saveStoredUser } from './utils/auth';
+import { getStoredAccounts, saveStoredAccounts } from './utils/auth';
 
 export default function App() {
-  // Accounts (Admin and Admin2)
+  // Accounts for authentication
   const [accounts, setAccounts] = useState(() => getStoredAccounts());
 
-  // Current logged in user (Super Admin or Admin)
-  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-
-  // Active navigation tab
-  const [activeTab, setActiveTab] = useState('proctors');
-
-  // Semester and Exam type settings
-  const [semesterCode, setSemesterCode] = useState(() => {
-    return localStorage.getItem('qou_semester') || '1261';
-  });
-
-  const [examType, setExamType] = useState(() => {
-    return localStorage.getItem('qou_exam_type') || 'نصفي';
-  });
-
-  // Proctors roster (pre-loaded with the 43 proctor names)
-  const [proctors, setProctors] = useState(() => {
+  // Current session user (null = show LoginPage)
+  const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const stored = localStorage.getItem('qou_proctors');
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_PROCTORS;
-  });
-
-  // Exam Schedule (pre-loaded with the 12-day schedule)
-  const [scheduleDays, setScheduleDays] = useState(() => {
-    try {
-      const stored = localStorage.getItem('qou_schedule_days');
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return DEFAULT_SCHEDULE;
-  });
-
-  const [totalRoomSlots, setTotalRoomSlots] = useState(() => {
-    try {
-      const stored = localStorage.getItem('qou_total_slots');
-      if (stored) return Number(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return DEFAULT_TOTAL_SLOTS;
-  });
-
-  const [uploadedFileName, setUploadedFileName] = useState(() => {
-    return localStorage.getItem('qou_uploaded_file') || 'توزيع المراقبين 1261.xlsx (الجدول المعتمد)';
-  });
-
-  // Distribution Results
-  const [distributionResult, setDistributionResult] = useState(() => {
-    try {
-      const stored = localStorage.getItem('qou_dist_result');
-      if (stored) return JSON.parse(stored);
+      const raw = sessionStorage.getItem('qou_session_user');
+      if (raw) return JSON.parse(raw);
     } catch (e) {
       console.error(e);
     }
     return null;
   });
 
-  // Sync accounts
-  useEffect(() => {
-    saveStoredAccounts(accounts);
-    // Update current user if its data changed in accounts
-    const updatedCurrent = accounts.find(a => a.role === currentUser?.role);
-    if (updatedCurrent) {
-      setCurrentUser(updatedCurrent);
-      saveStoredUser(updatedCurrent);
+  // Settings Modal State
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  // Active navigation tab within an open project
+  const [activeTab, setActiveTab] = useState('proctors');
+
+  // Projects Repository (Multi-Project storage)
+  const [projects, setProjects] = useState(() => {
+    try {
+      const stored = localStorage.getItem('qou_all_projects');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
     }
-  }, [accounts]);
+
+    // Default Seed Project: Semester 1261 Midterm
+    return [
+      {
+        id: 'proj_1261_midterm_default',
+        semesterCode: '1261',
+        examType: 'نصفي',
+        createdAt: '3 نوفمبر 2026',
+        updatedAt: new Date().toISOString(),
+        scheduleDays: DEFAULT_SCHEDULE,
+        totalRoomSlots: DEFAULT_TOTAL_SLOTS,
+        uploadedFileName: 'توزيع المراقبين 1261.xlsx (الجدول المعتمد)',
+        proctors: INITIAL_PROCTORS.map(p => ({
+          ...p,
+          quota: 0,
+          isActive: true,
+          exceptions: []
+        })),
+        distributionResult: null
+      }
+    ];
+  });
+
+  // Active Project ID (null = in ProjectsHub)
+  const [activeProjectId, setActiveProjectId] = useState(() => {
+    return sessionStorage.getItem('qou_active_proj_id') || null;
+  });
 
   // Local Storage Sync Effects
   useEffect(() => {
-    localStorage.setItem('qou_semester', semesterCode);
-  }, [semesterCode]);
+    localStorage.setItem('qou_all_projects', JSON.stringify(projects));
+  }, [projects]);
 
   useEffect(() => {
-    localStorage.setItem('qou_exam_type', examType);
-  }, [examType]);
+    saveStoredAccounts(accounts);
+  }, [accounts]);
 
   useEffect(() => {
-    localStorage.setItem('qou_proctors', JSON.stringify(proctors));
-  }, [proctors]);
-
-  useEffect(() => {
-    localStorage.setItem('qou_schedule_days', JSON.stringify(scheduleDays));
-  }, [scheduleDays]);
-
-  useEffect(() => {
-    localStorage.setItem('qou_total_slots', String(totalRoomSlots));
-  }, [totalRoomSlots]);
-
-  useEffect(() => {
-    localStorage.setItem('qou_uploaded_file', uploadedFileName);
-  }, [uploadedFileName]);
-
-  useEffect(() => {
-    if (distributionResult) {
-      localStorage.setItem('qou_dist_result', JSON.stringify(distributionResult));
+    if (activeProjectId) {
+      sessionStorage.setItem('qou_active_proj_id', activeProjectId);
+    } else {
+      sessionStorage.removeItem('qou_active_proj_id');
     }
-  }, [distributionResult]);
+  }, [activeProjectId]);
 
+  // Handle Login & Logout
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    sessionStorage.setItem('qou_session_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setActiveProjectId(null);
+    sessionStorage.removeItem('qou_session_user');
+    sessionStorage.removeItem('qou_active_proj_id');
+  };
+
+  // Find currently active project
+  const activeProject = projects.find(p => p.id === activeProjectId) || null;
+
+  // Helper to update fields of the active project
+  const updateActiveProject = (updater) => {
+    if (!activeProjectId) return;
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        const updated = typeof updater === 'function' ? updater(p) : { ...p, ...updater };
+        return { ...updated, updatedAt: new Date().toISOString() };
+      }
+      return p;
+    }));
+  };
+
+  // If user is not logged in, render the Dedicated Login Gateway
+  if (!currentUser) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // If logged in but no project is open, render the Projects Hub
+  if (!activeProject) {
+    return (
+      <>
+        <ProjectsHub
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          projects={projects}
+          setProjects={setProjects}
+          onOpenProject={(id) => {
+            setActiveProjectId(id);
+            setActiveTab('proctors');
+          }}
+        />
+
+        {/* Global Settings Modal */}
+        <SettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
+          semesterCode="1261"
+          setSemesterCode={() => {}}
+          examType="نصفي"
+          setExamType={() => {}}
+          proctors={INITIAL_PROCTORS}
+          setProctors={() => {}}
+          scheduleDays={DEFAULT_SCHEDULE}
+          setScheduleDays={() => {}}
+          setTotalRoomSlots={() => {}}
+          setDistributionResult={() => {}}
+          accounts={accounts}
+          setAccounts={setAccounts}
+        />
+      </>
+    );
+  }
+
+  // When inside an open project:
   return (
     <div className="min-h-screen flex flex-col bg-[#f8faf9] text-slate-800">
       
-      {/* Top Navbar */}
+      {/* Top Project Navbar */}
       <Navbar
         currentUser={currentUser}
-        onSwitchUser={() => setIsLoginModalOpen(true)}
+        onLogout={handleLogout}
+        onBackToHub={() => setActiveProjectId(null)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        semesterCode={semesterCode}
-        examType={examType}
+        semesterCode={activeProject.semesterCode}
+        examType={activeProject.examType}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
       />
 
-      {/* Main Content Area */}
+      {/* Main Project Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6">
         
+        {/* Tab 1: Proctors Management for this project */}
         {activeTab === 'proctors' && (
           <ProctorsTab
-            proctors={proctors}
-            setProctors={setProctors}
-            scheduleDays={scheduleDays}
-            totalRoomSlots={totalRoomSlots}
+            proctors={activeProject.proctors || []}
+            setProctors={(newProctors) => {
+              updateActiveProject(prev => ({
+                ...prev,
+                proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
+              }));
+            }}
+            scheduleDays={activeProject.scheduleDays || []}
+            totalRoomSlots={activeProject.totalRoomSlots || 0}
           />
         )}
 
+        {/* Tab 2: Exam Rooms Schedule for this project */}
         {activeTab === 'schedule' && (
           <ScheduleTab
-            scheduleDays={scheduleDays}
-            setScheduleDays={setScheduleDays}
-            totalRoomSlots={totalRoomSlots}
-            setTotalRoomSlots={setTotalRoomSlots}
-            uploadedFileName={uploadedFileName}
-            setUploadedFileName={setUploadedFileName}
+            scheduleDays={activeProject.scheduleDays || []}
+            setScheduleDays={(newDays) => {
+              updateActiveProject(prev => ({
+                ...prev,
+                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+              }));
+            }}
+            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            setTotalRoomSlots={(slots) => {
+              updateActiveProject({ totalRoomSlots: slots });
+            }}
+            uploadedFileName={activeProject.uploadedFileName || ''}
+            setUploadedFileName={(name) => {
+              updateActiveProject({ uploadedFileName: name });
+            }}
           />
         )}
 
+        {/* Tab 3: Distribution Engine for this project */}
         {activeTab === 'distribution' && (
           <DistributionTab
-            proctors={proctors}
-            scheduleDays={scheduleDays}
-            setScheduleDays={setScheduleDays}
-            totalRoomSlots={totalRoomSlots}
-            distributionResult={distributionResult}
-            setDistributionResult={setDistributionResult}
+            proctors={activeProject.proctors || []}
+            scheduleDays={activeProject.scheduleDays || []}
+            setScheduleDays={(newDays) => {
+              updateActiveProject(prev => ({
+                ...prev,
+                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+              }));
+            }}
+            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            distributionResult={activeProject.distributionResult}
+            setDistributionResult={(result) => {
+              updateActiveProject({ distributionResult: result });
+            }}
             setActiveTab={setActiveTab}
           />
         )}
 
+        {/* Tab 4: Results & Print-ready Views for this project */}
         {activeTab === 'results' && (
           <ResultsTab
-            scheduleDays={scheduleDays}
-            proctors={proctors}
-            distributionResult={distributionResult}
-            semesterCode={semesterCode}
-            examType={examType}
+            scheduleDays={activeProject.scheduleDays || []}
+            proctors={activeProject.proctors || []}
+            distributionResult={activeProject.distributionResult}
+            semesterCode={activeProject.semesterCode}
+            examType={activeProject.examType}
           />
         )}
 
@@ -190,35 +255,27 @@ export default function App() {
             <span>نظام التوزيع الذكي لمراقبات الامتحانات — جامعة القدس المفتوحة</span>
           </div>
           <div>
-            الفصل الدراسي: <strong>{semesterCode}</strong> | الامتحان: <strong>{examType}</strong>
+            مشروع: <strong>امتحان {activeProject.examType}</strong> | الفصل الدراسي: <strong>{activeProject.semesterCode}</strong>
           </div>
         </div>
       </footer>
 
-      {/* Modals */}
+      {/* Global Settings Modal */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        semesterCode={semesterCode}
-        setSemesterCode={setSemesterCode}
-        examType={examType}
-        setExamType={setExamType}
-        proctors={proctors}
-        setProctors={setProctors}
-        scheduleDays={scheduleDays}
-        setScheduleDays={setScheduleDays}
-        setTotalRoomSlots={setTotalRoomSlots}
-        setDistributionResult={setDistributionResult}
+        semesterCode={activeProject.semesterCode}
+        setSemesterCode={(val) => updateActiveProject({ semesterCode: val })}
+        examType={activeProject.examType}
+        setExamType={(val) => updateActiveProject({ examType: val })}
+        proctors={activeProject.proctors}
+        setProctors={(val) => updateActiveProject({ proctors: val })}
+        scheduleDays={activeProject.scheduleDays}
+        setScheduleDays={(val) => updateActiveProject({ scheduleDays: val })}
+        setTotalRoomSlots={(val) => updateActiveProject({ totalRoomSlots: val })}
+        setDistributionResult={(val) => updateActiveProject({ distributionResult: val })}
         accounts={accounts}
         setAccounts={setAccounts}
-      />
-
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        currentUser={currentUser}
-        setCurrentUser={setCurrentUser}
-        accounts={accounts}
       />
 
     </div>
