@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   ShieldCheck, UserCheck, Settings, LogOut, ArrowRight, Check,
-  ChevronLeft, Sparkles
+  ChevronLeft, Sparkles, Loader2, Cloud, CloudOff, AlertTriangle
 } from 'lucide-react';
 import { ROLES } from '../utils/auth';
 
@@ -14,7 +14,10 @@ export default function Navbar({
   semesterCode,
   examType,
   onOpenSettings,
-  workflowStats
+  workflowStats,
+  cloudSyncState,
+  activeProject,
+  onResolveConflict
 }) {
   const isSuperAdmin = currentUser?.role === ROLES.SUPER_ADMIN;
 
@@ -102,12 +105,49 @@ export default function Navbar({
             </div>
           </div>
 
-          {/* Current Semester & Exam Type Badges */}
+          {/* Current Semester & Exam Type Badges & Cloud OCC Status */}
           <div className="flex items-center gap-2 text-xs">
-            <span className="hidden lg:inline-flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-full border border-white/20 text-[11px] font-semibold backdrop-blur-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>سحابة قوقل متزامنة</span>
-            </span>
+            {/* Live Cloud OCC Indicator */}
+            {cloudSyncState?.status === 'saving' && (
+              <span className="inline-flex items-center gap-1.5 bg-blue-500/20 text-blue-100 px-3 py-1 rounded-full border border-blue-400/40 text-[11px] font-bold backdrop-blur-sm animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-200" />
+                <span>جارٍ الحفظ سحابياً...</span>
+              </span>
+            )}
+
+            {cloudSyncState?.status === 'saved' && (
+              <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-100 px-3 py-1 rounded-full border border-emerald-400/40 text-[11px] font-bold backdrop-blur-sm">
+                <Check className="w-3.5 h-3.5 text-emerald-300" />
+                <span>حُفظ سحابياً (V{activeProject?.version || 1})</span>
+              </span>
+            )}
+
+            {cloudSyncState?.status === 'conflict' && (
+              <button
+                type="button"
+                onClick={onResolveConflict}
+                className="inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-full border border-rose-300 text-[11px] font-black shadow-md animate-bounce cursor-pointer"
+                title="اضغط لحل التعارض"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />
+                <span>تنبيه تعارض متزامن! اضغط هنا</span>
+              </button>
+            )}
+
+            {cloudSyncState?.status === 'offline' && (
+              <span className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-100 px-2.5 py-1 rounded-full border border-amber-400/40 text-[11px] font-bold backdrop-blur-sm">
+                <CloudOff className="w-3.5 h-3.5 text-amber-300" />
+                <span>وضع محلي</span>
+              </span>
+            )}
+
+            {(!cloudSyncState || cloudSyncState.status === 'connected') && (
+              <span className="hidden lg:inline-flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-full border border-white/20 text-[11px] font-semibold backdrop-blur-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>سحابة متزامنة (V{activeProject?.version || 1})</span>
+              </span>
+            )}
+
             <span className="bg-white/15 px-3 py-1 rounded-full border border-white/20 font-semibold backdrop-blur-sm">
               الفصل: <strong className="text-qou-accent">{semesterCode}</strong>
             </span>

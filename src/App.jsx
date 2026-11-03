@@ -8,6 +8,7 @@ import DistributionTab from './components/DistributionTab';
 import ReviewTab from './components/ReviewTab';
 import ResultsTab from './components/ResultsTab';
 import SettingsModal from './components/SettingsModal';
+import ConfirmModal from './components/ConfirmModal';
 
 import { INITIAL_PROCTORS } from './data/initialProctors';
 import { getStoredAccounts, saveStoredAccounts } from './utils/auth';
@@ -157,6 +158,12 @@ export default function App() {
   }, [activeProject]);
 
   const [cloudStatus, setCloudStatus] = useState('connecting');
+  const [cloudSyncState, setCloudSyncState] = useState({
+    status: 'connected', // 'connected' | 'saving' | 'saved' | 'conflict' | 'offline'
+    lastSavedAt: null,
+    conflictData: null
+  });
+  const [conflictModalConfig, setConflictModalConfig] = useState(null);
 
   // Real-time Cloud Synchronization with Google Cloud Firestore
   useEffect(() => {
@@ -173,24 +180,85 @@ export default function App() {
       (err) => {
         console.warn('Firestore subscription fallback to local storage:', err);
         setCloudStatus('offline');
+        setCloudSyncState(prev => ({ ...prev, status: 'offline' }));
       }
     );
 
     return () => unsubscribe();
   }, []);
 
-  // Helper to update fields of the active project
-  const updateActiveProject = (updater) => {
+  // Helper to update fields of the active project with OCC (Optimistic Concurrency Control)
+  const updateActiveProject = async (updater, force = false) => {
     if (!activeProjectId) return;
+
+    let targetBaseVersion = null;
+    let nextLocalProject = null;
+
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
+        targetBaseVersion = p.version !== undefined ? p.version : null;
         const updated = typeof updater === 'function' ? updater(p) : { ...p, ...updater };
-        const withTimestamp = { ...updated, updatedAt: new Date().toISOString() };
-        saveProjectToCloud(withTimestamp).catch(err => console.warn('Cloud save warning:', err));
-        return withTimestamp;
+        nextLocalProject = updated;
+        return updated;
       }
       return p;
     }));
+
+    if (!nextLocalProject) return;
+
+    setCloudSyncState(prev => ({ ...prev, status: 'saving' }));
+
+    try {
+      const res = await saveProjectToCloud(nextLocalProject, force ? null : targetBaseVersion, force);
+
+      if (res.conflict) {
+        setCloudSyncState(prev => ({
+          ...prev,
+          status: 'conflict',
+          conflictData: res
+        }));
+
+        setConflictModalConfig({
+          remoteVersion: res.remoteVersion,
+          remoteUpdatedAt: res.remoteUpdatedAt,
+          onAcceptRemote: () => {
+            setProjects(prev => prev.map(p => p.id === activeProjectId ? res.remoteProject : p));
+            setCloudSyncState({ status: 'connected', lastSavedAt: new Date(), conflictData: null });
+            setConflictModalConfig(null);
+          },
+          onForceOverwrite: () => {
+            updateActiveProject((p) => ({ ...p, version: res.remoteVersion }), true);
+            setConflictModalConfig(null);
+          }
+        });
+      } else if (res.success) {
+        setProjects(prev => prev.map(p => {
+          if (p.id === activeProjectId) {
+            return {
+              ...p,
+              version: res.version,
+              updatedAt: res.updatedAt
+            };
+          }
+          return p;
+        }));
+
+        setCloudSyncState({
+          status: 'saved',
+          lastSavedAt: new Date(),
+          conflictData: null
+        });
+
+        setTimeout(() => {
+          setCloudSyncState(prev => prev.status === 'saved' ? { ...prev, status: 'connected' } : prev);
+        }, 3000);
+      } else {
+        setCloudSyncState(prev => ({ ...prev, status: 'offline' }));
+      }
+    } catch (err) {
+      console.warn('saveProjectToCloud exception:', err);
+      setCloudSyncState(prev => ({ ...prev, status: 'offline' }));
+    }
   };
 
   // If user is not logged in, render the Dedicated Login Gateway
@@ -251,6 +319,25 @@ export default function App() {
         examType={activeProject.examType}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         workflowStats={workflowStats}
+        cloudSyncState={cloudSyncState}
+        activeProject={activeProject}
+        onResolveConflict={() => {
+          if (cloudSyncState.conflictData) {
+            setConflictModalConfig({
+              remoteVersion: cloudSyncState.conflictData.remoteVersion,
+              remoteUpdatedAt: cloudSyncState.conflictData.remoteUpdatedAt,
+              onAcceptRemote: () => {
+                setProjects(prev => prev.map(p => p.id === activeProjectId ? cloudSyncState.conflictData.remoteProject : p));
+                setCloudSyncState({ status: 'connected', lastSavedAt: new Date(), conflictData: null });
+                setConflictModalConfig(null);
+              },
+              onForceOverwrite: () => {
+                updateActiveProject((p) => ({ ...p, version: cloudSyncState.conflictData.remoteVersion }), true);
+                setConflictModalConfig(null);
+              }
+            });
+          }
+        }}
       />
 
       {/* Main Project Content Area */}
@@ -387,6 +474,24 @@ export default function App() {
         accounts={accounts}
         setAccounts={setAccounts}
       />
+
+      {/* Real-time Concurrency Conflict Resolution Dialog */}
+      {conflictModalConfig && (
+        <ConfirmModal
+          isOpen={true}
+          title="⚠️ تنبيه تعارض: تم تعديل الجدول من جلسة أخرى متزامنة!"
+          message={`تم إجراء تعديلات أحدث على هذا المشروع سحابياً (النسخة رقم V${conflictModalConfig.remoteVersion}) في ${conflictModalConfig.remoteUpdatedAt ? new Date(conflictModalConfig.remoteUpdatedAt).toLocaleTimeString('ar-EG') : 'وقت سابق'}. لحماية تعديلاتكم ومنع ضياع أي بيانات، يرجى اختيار الإجراء المناسب:`}
+          variant="warning"
+          confirmText="تحديث واعتماد النسخة السحابية الأحدث"
+          cancelText="فرض حفظ نسختي الحالية واستبدال السحابة"
+          consequences={[
+            'تحديث النسخة السحابية: سيتم جلب أحدث تعديلات الزملاء التي تم حفظها على السحابة.',
+            'فرض نسختك: سيتم استبدال النسخة الموجودة على السحابة بالبيانات الظاهرة أمامك الآن.'
+          ]}
+          onConfirm={conflictModalConfig.onAcceptRemote}
+          onCancel={conflictModalConfig.onForceOverwrite}
+        />
+      )}
 
     </div>
   );

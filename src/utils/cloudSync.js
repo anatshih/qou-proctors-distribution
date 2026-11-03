@@ -5,17 +5,32 @@
  * Provides:
  * - Real-time cloud listening via onSnapshot
  * - Resilient offline-first persistence with localStorage fallback
- * - Auto-sync for projects, assignments, and proctors
+ * - Optimistic Concurrency Control (OCC) with version incrementing & collision detection
+ * - Zero silent overwrites: Warns and prompts if another user saved concurrently
  */
 
 import { 
-  collection, doc, setDoc, getDocs, onSnapshot, deleteDoc, 
-  serverTimestamp, enableIndexedDbPersistence 
+  collection, doc, setDoc, getDoc, getDocs, onSnapshot, deleteDoc, 
+  enableIndexedDbPersistence 
 } from 'firebase/firestore';
 import { db } from './firebase';
 
 const PROJECTS_COLLECTION = 'qou_projects';
-const LOCAL_STORAGE_KEY = 'qou_exam_projects';
+const CANONICAL_LOCAL_STORAGE_KEY = 'qou_all_projects';
+
+// Attempt to enable IndexedDB offline persistence safely
+try {
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      // Multiple tabs open, persistence can only be enabled in one tab at a time.
+      console.warn('Firestore offline persistence: multiple tabs open, active in primary tab.');
+    } else if (err.code === 'unimplemented') {
+      console.warn('Firestore offline persistence: current browser does not support all required features.');
+    }
+  });
+} catch (e) {
+  // Ignore in environments where persistence is already initialized
+}
 
 /**
  * Subscribe to real-time Cloud Firestore updates for exam projects
@@ -39,10 +54,10 @@ export function subscribeToCloudProjects(onData, onError) {
           return timeB - timeA;
         });
 
-        // Cache into localStorage for instant offline startup
+        // Cache into canonical localStorage for instant offline startup
         if (cloudProjects.length > 0) {
           try {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cloudProjects));
+            localStorage.setItem(CANONICAL_LOCAL_STORAGE_KEY, JSON.stringify(cloudProjects));
           } catch (e) {
             console.warn('localStorage caching failed:', e);
           }
@@ -66,22 +81,69 @@ export function subscribeToCloudProjects(onData, onError) {
 
 /**
  * Save or update a single project in Google Cloud Firestore
+ * Implements Optimistic Concurrency Control (OCC):
+ * If expectedVersion is supplied and the remote document on Firestore has a higher version,
+ * the write is aborted and a conflict result is returned rather than blindly overwriting.
+ * 
+ * @param {Object} project - The project state to save
+ * @param {number|null} expectedVersion - The base version this edit was performed upon
+ * @param {boolean} force - If true, bypasses conflict check and overwrites remote
+ * @returns {Promise<Object>} Result indicating success, conflict details, or error
  */
-export async function saveProjectToCloud(project) {
-  if (!project || !project.id) return false;
+export async function saveProjectToCloud(project, expectedVersion = null, force = false) {
+  if (!project || !project.id) {
+    return { success: false, conflict: false, error: 'معرّف المشروع غير صالح' };
+  }
 
   try {
     const docRef = doc(db, PROJECTS_COLLECTION, project.id);
+
+    // Concurrency conflict check
+    if (!force && expectedVersion !== null && expectedVersion !== undefined) {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const remoteData = snap.data();
+        const remoteVersion = Number(remoteData.version) || 0;
+
+        if (remoteVersion > expectedVersion) {
+          console.warn(`[OCC Conflict] Project ${project.id}: Remote V${remoteVersion} is newer than local base V${expectedVersion}`);
+          return {
+            success: false,
+            conflict: true,
+            localVersion: expectedVersion,
+            remoteVersion,
+            remoteUpdatedAt: remoteData.updatedAt || 'غير معروف',
+            remoteProject: { ...remoteData, id: snap.id }
+          };
+        }
+      }
+    }
+
+    const currentVer = Number(project.version) || 0;
+    const nextVersion = currentVer + 1;
+    const nowIso = new Date().toISOString();
+
     const payload = {
       ...project,
-      updatedAt: new Date().toISOString()
+      version: nextVersion,
+      updatedAt: nowIso
     };
 
     await setDoc(docRef, payload, { merge: true });
-    return true;
+
+    return { 
+      success: true, 
+      conflict: false, 
+      version: nextVersion, 
+      updatedAt: nowIso 
+    };
   } catch (err) {
     console.error(`Failed to save project ${project.id} to cloud:`, err);
-    throw err;
+    return {
+      success: false,
+      conflict: false,
+      error: err.message || String(err)
+    };
   }
 }
 
@@ -114,7 +176,7 @@ export async function seedLocalProjectsToCloudIfEmpty(localProjects) {
     if (snap.empty) {
       console.log('Cloud collection is empty. Seeding local projects to Google Cloud...');
       for (const project of localProjects) {
-        await saveProjectToCloud(project);
+        await saveProjectToCloud(project, null, true);
       }
       console.log('Seeding to Google Cloud Firestore completed successfully.');
     }
