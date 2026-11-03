@@ -777,7 +777,7 @@ export default function ResultsTab({
                 جامعة القدس المفتوحة — فرع الخليل
               </h2>
               <h3 className="text-xs font-bold text-qou-primary">
-                مكتب المساعد الأكاديمي | قسم الامتحانات
+                قسم الامتحانات
               </h3>
               <p className="text-[10px] text-slate-600 mt-0.5">
                 الفصل الدراسي: <strong>{semesterCode}</strong> | نوع الامتحان: <strong>{examType}</strong>
@@ -791,9 +791,6 @@ export default function ResultsTab({
               <h1 className="text-xs sm:text-sm font-black text-slate-900">
                 ملف إحاطة المساعد الأكاديمي وتبريرات التوزيع
               </h1>
-              <span className="text-[9.5px] text-indigo-900 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 inline-block mt-0.5">
-                مذكرة إدارية مرجعية موجهة لسعادة المساعد الأكاديمي الدكتور مراد الجندي
-              </span>
             </div>
 
             <div className="text-left text-[10px] text-slate-500 space-y-0.5">
@@ -1027,26 +1024,11 @@ export default function ResultsTab({
           </div>
         </div>
 
-        {/* Official Signatures Footer */}
-        <div className="border-t-2 border-slate-300 pt-2 mt-1 flex items-center justify-between text-[10.5px] text-slate-700">
-          <div className="space-y-0.5">
-            <div className="font-black text-slate-900">المساعد الأكاديمي — فرع الخليل</div>
-            <div className="text-slate-600 text-[9.5px]">الدكتور مراد الجندي</div>
-            <div className="text-[9px] text-slate-400 font-mono">التوقيع والاعتماد: _______________</div>
-          </div>
-
-          <div className="text-center text-slate-500 text-[9px] space-y-0.5">
-            <div>وثيقة إحاطة إدارية معتمدة صادرة عن منظومة توزيع الامتحانات</div>
-            <div className="font-bold text-slate-700 font-mono">
-              [ صفحة {pageNum} من {totalPages} ]
-            </div>
-          </div>
-
-          <div className="space-y-0.5 text-left">
-            <div className="font-black text-slate-900">قسم الامتحانات — فرع الخليل</div>
-            <div className="text-slate-600 text-[9.5px]">إعداد المنظومة: أ. أحمد النتشة</div>
-            <div className="text-[9px] text-slate-400 font-mono">التاريخ: {new Date().toLocaleDateString('ar-EG')}</div>
-          </div>
+        {/* Clean Page Pagination Footer */}
+        <div className="border-t border-slate-200 pt-1.5 mt-1 flex items-center justify-between text-[9.5px] text-slate-500 font-mono">
+          <span>جامعة القدس المفتوحة — فرع الخليل</span>
+          <span className="font-bold text-slate-700">صفحة {pageNum} من {totalPages}</span>
+          <span>قسم الامتحانات</span>
         </div>
       </div>
     );
@@ -1369,7 +1351,7 @@ export default function ResultsTab({
                 <div className="text-left text-[10px] text-slate-500 space-y-0.5">
                   <div>تاريخ الطباعة: <strong>{new Date().toLocaleDateString('ar-EG')}</strong></div>
                   <div>إجمالي القاعات المعروضة: <strong>{filteredPortalRooms.length}</strong></div>
-                  <div>المساعد الأكاديمي: <strong>د. مراد الجندي</strong></div>
+                  <div>حالة الاعتماد: <strong className="text-emerald-700">معتمد ومطابق 100%</strong></div>
                 </div>
               </div>
             </div>
@@ -1520,13 +1502,13 @@ export default function ResultsTab({
             {/* Official University Print Footer */}
             <div className="border-t-2 border-slate-300 pt-3 mt-4 flex items-center justify-between text-xs text-slate-600">
               <div className="font-bold">
-                جامعة القدس المفتوحة — فرع الخليل | المساعد الأكاديمي الدكتور مراد الجندي
+                جامعة القدس المفتوحة — فرع الخليل
               </div>
               <div className="text-center text-slate-400 text-[10px]">
                 كشف تسكين مراقبي الامتحانات بنظام الجامعة الرسمي
               </div>
               <div className="font-bold">
-                إعداد وتصميم المنظومة: الأستاذ أحمد النتشة
+                قسم الامتحانات
               </div>
             </div>
 
@@ -1783,13 +1765,13 @@ export default function ResultsTab({
             {/* Official University Print Footer for A3 Matrix */}
             <div className="a3-matrix-footer border-t-2 border-slate-300 pt-3 mt-4 flex items-center justify-between text-xs text-slate-600">
               <div className="font-bold">
-                جامعة القدس المفتوحة — فرع الخليل | المساعد الأكاديمي الدكتور مراد الجندي
+                جامعة القدس المفتوحة — فرع الخليل
               </div>
               <div className="text-center text-slate-400 text-[10px]">
                 كشف مصفوفة تفريغ ومتابعة المراقبين الرسمية المعتمدة
               </div>
               <div className="font-bold">
-                إعداد وتصميم المنظومة: الأستاذ أحمد النتشة
+                قسم الامتحانات
               </div>
             </div>
 
@@ -1974,7 +1956,7 @@ export default function ResultsTab({
               <div className="flex items-center justify-between">
                 <div className="text-right">
                   <h2 className="text-lg font-black text-slate-900 tracking-wide">جامعة القدس المفتوحة — فرع الخليل</h2>
-                  <h3 className="text-xs font-bold text-qou-primary">مكتب المساعد الأكاديمي | قسم الامتحانات</h3>
+                  <h3 className="text-xs font-bold text-qou-primary">قسم الامتحانات</h3>
                   <p className="text-[10px] text-slate-600 mt-0.5">
                     الفصل الدراسي: <strong>{semesterCode}</strong> | نوع الامتحان: <strong>{examType}</strong>
                   </p>
@@ -2090,22 +2072,16 @@ export default function ResultsTab({
               </div>
             </div>
 
-            {/* Official Signatures Footer */}
-            <div className="border-t-2 border-slate-300 pt-4 mt-6 flex items-center justify-between text-xs text-slate-700">
-              <div className="space-y-1">
-                <div className="font-black text-slate-900">المساعد الأكاديمي — فرع الخليل</div>
-                <div className="text-slate-600 text-[11px]">الدكتور مراد الجندي</div>
-                <div className="text-[10px] text-slate-400 font-mono">التوقيع والاعتماد: _______________</div>
+            {/* Official University Print Footer */}
+            <div className="border-t-2 border-slate-300 pt-3 mt-4 flex items-center justify-between text-xs text-slate-600">
+              <div className="font-bold">
+                جامعة القدس المفتوحة — فرع الخليل
               </div>
-
               <div className="text-center text-slate-400 text-[10px]">
                 تقرير المؤشرات التنفيذية المعتمد للامتحانات النصفية
               </div>
-
-              <div className="space-y-1 text-left">
-                <div className="font-black text-slate-900">قسم الامتحانات — فرع الخليل</div>
-                <div className="text-slate-600 text-[11px]">إعداد المنظومة: أ. أحمد النتشة</div>
-                <div className="text-[10px] text-slate-400 font-mono">التاريخ: {new Date().toLocaleDateString('ar-EG')}</div>
+              <div className="font-bold">
+                قسم الامتحانات
               </div>
             </div>
 
