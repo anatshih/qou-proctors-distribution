@@ -1,6 +1,60 @@
 import * as XLSX from 'xlsx';
 
 /**
+ * Helper to normalize 2-digit years (e.g. 11/7/26 -> 11/7/2026)
+ */
+function normalizeDateStr(str) {
+  if (!str) return '';
+  const parts = str.split('/');
+  if (parts.length === 3) {
+    let year = parts[2];
+    if (year.length === 2) year = '20' + year;
+    return `${parts[0]}/${parts[1]}/${year}`;
+  }
+  return str;
+}
+
+/**
+ * Robust extractor for Day Name and Date from a header row
+ * Handles strings, numbers (Excel date serials), Date objects, etc.
+ */
+function extractDayAndDate(row) {
+  let dayName = '';
+  let dateStr = '';
+  const dayRegex = /(السبت|الأحد|الاحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الاربعاء|الخميس|الجمعة)/;
+
+  for (let cell of row) {
+    if (cell === null || cell === undefined || cell === '') continue;
+
+    // 1. Detect Day Name
+    if (!dayName && typeof cell === 'string') {
+      const match = cell.match(dayRegex);
+      if (match) {
+        dayName = match[0];
+      }
+    }
+
+    // 2. Detect Date
+    if (!dateStr) {
+      if (cell instanceof Date) {
+        dateStr = `${cell.getMonth() + 1}/${cell.getDate()}/${cell.getFullYear()}`;
+      } else if (typeof cell === 'number' && cell > 30000 && cell < 60000) {
+        // Excel serial date number
+        const d = new Date(Math.round((cell - 25569) * 86400 * 1000));
+        dateStr = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+      } else if (typeof cell === 'string') {
+        const dateMatch = cell.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})|(\d{4}-\d{1,2}-\d{1,2})/);
+        if (dateMatch) {
+          dateStr = normalizeDateStr(dateMatch[0]);
+        }
+      }
+    }
+  }
+
+  return { dayName: dayName || 'يوم امتحان', dateStr };
+}
+
+/**
  * Parse an uploaded exam room schedule Excel file
  */
 export function parseUploadedSchedule(file) {
@@ -10,12 +64,12 @@ export function parseUploadedSchedule(file) {
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
-        // Convert to array of arrays
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        // Convert to array of arrays with raw: false to retain formatted strings
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: '' });
 
         const days = [];
         let currentDayObj = null;
@@ -32,14 +86,8 @@ export function parseUploadedSchedule(file) {
 
           // Check if this row is a day/date header
           const joinedRow = `${c0} ${c1} ${c2} ${c3} ${c4} ${c5}`;
-          if (joinedRow.includes('اليوم والتاريخ') || /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(joinedRow)) {
-            // Find date and day name
-            let dateMatch = joinedRow.match(/\d{1,2}\/\d{1,2}\/\d{2,4}/);
-            let dateStr = dateMatch ? dateMatch[0] : '';
-            
-            // Look for Arabic day name
-            let dayNameMatch = joinedRow.match(/(السبت|الأحد|الاحد|الاثنين|الإثنين|الثلاثاء|الأربعاء|الاربعاء|الخميس|الجمعة)/);
-            let dayName = dayNameMatch ? dayNameMatch[0] : (c3 || c2 || 'يوم امتحان');
+          if (joinedRow.includes('اليوم والتاريخ') || /(السبت|الأحد|الاحد|الاثنين|الإثنين|الثلاثاء|الأربعاء|الاربعاء|الخميس|الجمعة)/.test(joinedRow)) {
+            const { dayName, dateStr } = extractDayAndDate(row);
 
             currentDayObj = {
               dayName: dayName,
@@ -51,7 +99,6 @@ export function parseUploadedSchedule(file) {
           }
 
           // Check if this row is a room row (where session is a number and room is a number/text)
-          // In the standard template: col 1 is session number, col 2 is room number, col 4 is proctor name
           let sessionNum = null;
           let roomName = null;
           let proctorName = '';
@@ -71,7 +118,7 @@ export function parseUploadedSchedule(file) {
             if (!currentDayObj) {
               currentDayObj = {
                 dayName: 'اليوم الأول',
-                date: '1/1/2026',
+                date: '11/7/2026',
                 sessions: []
               };
               days.push(currentDayObj);
@@ -137,16 +184,15 @@ export function exportDistributedScheduleExcel(days, semesterCode, examType) {
       });
     });
 
-    rows.push([]); // Empty row separator between days
+    rows.push([]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
-  // Set column widths
   ws['!cols'] = [
-    { wch: 15 }, // رقم الجلسة
-    { wch: 15 }, // القاعة
-    { wch: 38 }, // اسم المراقب
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 38 },
     { wch: 18 },
     { wch: 18 }
   ];
@@ -162,18 +208,14 @@ export function exportProctorsMatrixExcel(proctorStats, days, semesterCode, exam
   const wb = XLSX.utils.book_new();
   const rows = [];
 
-  // Header 1: Main Title
   rows.push(['جامعة القدس المفتوحة - مصفوفة تفريغ ومتابعة أنصبة المراقبين']);
   rows.push([`الفصل الدراسي: ${semesterCode} - الامتحان: ${examType}`]);
   rows.push([]);
 
-  // Build columns for days and sessions
-  // Day row
   const dayRow = ['اسم المراقب', 'الحالة', 'النصاب المطلوب', 'المنفذ', 'الفرق'];
-  // Session row
   const sessionRow = ['', '', '', '', ''];
 
-  days.forEach((day, dIdx) => {
+  days.forEach((day) => {
     (day.sessions || []).forEach(sess => {
       dayRow.push(`${day.dayName} (${day.date})`);
       sessionRow.push(`جلسة ${sess.sessionNumber}`);
@@ -183,7 +225,6 @@ export function exportProctorsMatrixExcel(proctorStats, days, semesterCode, exam
   rows.push(dayRow);
   rows.push(sessionRow);
 
-  // Populate proctor rows
   proctorStats.forEach(p => {
     const pRow = [
       p.name,
@@ -193,7 +234,6 @@ export function exportProctorsMatrixExcel(proctorStats, days, semesterCode, exam
       p.difference
     ];
 
-    // For each day & session column, check if this proctor is assigned
     days.forEach(day => {
       (day.sessions || []).forEach(sess => {
         const foundRoom = (sess.rooms || []).find(r => r.proctor === p.name);
@@ -210,13 +250,12 @@ export function exportProctorsMatrixExcel(proctorStats, days, semesterCode, exam
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   
-  // Set widths
   ws['!cols'] = [
-    { wch: 35 }, // name
-    { wch: 10 }, // status
-    { wch: 14 }, // quota
-    { wch: 12 }, // assigned
-    { wch: 10 }, // diff
+    { wch: 35 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 10 },
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'مصفوفة التفريغ');
