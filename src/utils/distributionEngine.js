@@ -5,14 +5,14 @@
  * 
  * Rules Enforced:
  * 1. Multi-Proctor per Room (1, 2, or 3 proctors per room capacity).
- * 2. Academic Contract Load Priority: Academic staff are prioritized over Administrative staff to meet academic quotas.
- * 3. Consecutive Session Preference: Favors (1 + 2) or (2 + 3) continuous assignments.
- * 4. Strict No-Gap Rule: Forbids assigning Session 1 and Session 3 on the same day while leaving Session 2 empty.
- * 5. Avoid Single-Session Days: Prioritizes assigning proctors to a second session on the day they attend.
+ * 2. Academic Contract Load Priority: Academic staff are prioritized over Administrative staff to meet academic quotas (100% mandatory target).
+ * 3. Pair-First Academic Clustering: Academics are assigned in consecutive pairs (1+2 or 2+3) to cluster their attendance and avoid single-session days.
+ * 4. Administrative Staff as "Absorbers": Administrative staff (already on campus) absorb isolated single sessions, protecting academics from single-session trips.
+ * 5. Strict No-Gap Rule: Forbids assigning Session 1 and Session 3 on the same day for academics while leaving Session 2 empty.
  * 6. Daily Session Limits:
  *    - Administrative Staff: Strictly MAX 2 sessions per day (never 3).
  *    - Academic Staff: Target MAX 2 sessions; 3rd session permitted only as extreme necessity if no other candidate is available.
- * 7. Proctor-Specific Exclusions & Preferences: Respects excludeSession3 and preferredPair ('1-2' | '2-3').
+ * 7. Proctor-Specific Exclusions & Preferences: Respects user exceptions, excludeSession3, and preferredPair ('1-2' | '2-3').
  */
 
 export function runProctorDistribution(scheduleDays, proctorsList) {
@@ -37,35 +37,15 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       dailySessions: {} // date -> Set of session numbers assigned today
     }));
 
-  // -------------------------------------------------------------
-  // STEP 1: Flatten All Slots & Pre-Calculate Session Densities
-  // -------------------------------------------------------------
-  const allSlots = [];
-  days.forEach((day, dayIndex) => {
-    (day.sessions || []).forEach(session => {
-      const sessionNum = Number(session.sessionNumber) || 1;
-      (session.rooms || []).forEach(roomObj => {
-        const capacity = Math.max(1, Number(roomObj.capacity) || 1);
-        roomObj.capacity = capacity;
-        roomObj.assignedProctors = [];
-        for (let slot = 0; slot < capacity; slot++) {
-          allSlots.push({
-            dayIndex,
-            date: day.date,
-            dayName: day.dayName,
-            sessionNumber: sessionNum,
-            roomObj,
-            slotIndex: slot,
-            sessionDensity: session.rooms.length
-          });
-        }
+  // Initialize room assignments and normalize capacities
+  days.forEach(d => {
+    (d.sessions || []).forEach(s => {
+      (s.rooms || []).forEach(r => {
+        r.assignedProctors = [];
+        r.capacity = Math.max(1, Number(r.capacity) || 1);
       });
     });
   });
-
-  const totalSlots = allSlots.length;
-  let filledSlots = 0;
-  const unassignedSlots = [];
 
   // Global Session Proctor Set to strictly forbid any double-booking
   const sessionProctorMap = new Map();
@@ -75,68 +55,177 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
     return sessionProctorMap.get(key);
   };
 
-  // -------------------------------------------------------------
-  // STEP 2: Smart Bottleneck-First / Constraint Density Sorting
-  // Peak bottleneck sessions (e.g. Day 12 with 21 rooms, Day 3 with 25 rooms)
-  // are scheduled FIRST to prevent proctor quotas from depleting prematurely.
-  // -------------------------------------------------------------
-  allSlots.sort((a, b) => {
-    if (b.sessionDensity !== a.sessionDensity) {
-      return b.sessionDensity - a.sessionDensity;
+  // Constraint validation helper
+  const canAssign = (proctor, date, sessionNum) => {
+    if (proctor.assignedCount >= proctor.quota) return false;
+    if (getProctorSet(date, sessionNum).has(proctor.id)) return false;
+
+    const dayWideKey = `${date}_all`;
+    const sessionKey = `${date}_s${sessionNum}`;
+    if (proctor.exceptions.has(dayWideKey) || proctor.exceptions.has(sessionKey)) return false;
+    if (sessionNum === 3 && proctor.excludeSession3) return false;
+
+    const count = proctor.dailySessionCount[date] || 0;
+    if (proctor.type === 'administrative') {
+      if (count >= 2) return false;
+    } else {
+      if (count >= 3) return false;
+      const todaySessions = proctor.dailySessions[date] || new Set();
+      // Strict NO-GAP: Forbid 1+3 without 2 for academics
+      if (sessionNum === 3 && todaySessions.has(1) && !todaySessions.has(2)) return false;
+      if (sessionNum === 1 && todaySessions.has(3) && !todaySessions.has(2)) return false;
     }
-    if (b.dayIndex !== a.dayIndex) {
-      return b.dayIndex - a.dayIndex;
+    return true;
+  };
+
+  // Assignment executor helper
+  const doAssign = (proctor, dayIndex, date, dayName, sessionNum, roomObj) => {
+    roomObj.assignedProctors.push(proctor.name);
+    proctor.assignedCount++;
+    getProctorSet(date, sessionNum).add(proctor.id);
+    proctor.daysWorked.add(date);
+    proctor.dailySessionCount[date] = (proctor.dailySessionCount[date] || 0) + 1;
+    if (!proctor.dailySessions[date]) proctor.dailySessions[date] = new Set();
+    proctor.dailySessions[date].add(sessionNum);
+
+    const slotIndex = roomObj.assignedProctors.length;
+    proctor.assignments.push({
+      dayIndex,
+      date,
+      dayName,
+      sessionNumber: sessionNum,
+      room: roomObj.room,
+      slotIndex
+    });
+  };
+
+  // -------------------------------------------------------------
+  // PHASE 1: PAIR ALLOCATION FOR ACADEMICS (Consecutive Double Sessions)
+  // Schedules academics in consecutive blocks (1+2 or 2+3) to minimize single days.
+  // Prioritizes bottleneck days first (Day 12, Day 3, Day 6, Day 8, etc.)
+  // -------------------------------------------------------------
+  const dayDemand = days.map((d, dIdx) => {
+    let totalRooms = 0;
+    (d.sessions || []).forEach(s => totalRooms += (s.rooms || []).length);
+    return { dayIndex: dIdx, day: d, totalRooms };
+  });
+  dayDemand.sort((a, b) => b.totalRooms - a.totalRooms);
+
+  dayDemand.forEach(({ dayIndex, day }) => {
+    const date = day.date;
+    const dayName = day.dayName;
+    const sess1 = (day.sessions || []).find(s => s.sessionNumber === 1);
+    const sess2 = (day.sessions || []).find(s => s.sessionNumber === 2);
+    const sess3 = (day.sessions || []).find(s => s.sessionNumber === 3);
+
+    const getUnfilledSlots = (sess) => {
+      if (!sess) return [];
+      const slots = [];
+      (sess.rooms || []).forEach(r => {
+        const cap = r.capacity || 1;
+        const filled = (r.assignedProctors || []).length;
+        for (let i = filled; i < cap; i++) {
+          slots.push(r);
+        }
+      });
+      return slots;
+    };
+
+    const tryFormPairs = (sA_num, sB_num) => {
+      const sessA = sA_num === 1 ? sess1 : (sA_num === 2 ? sess2 : sess3);
+      const sessB = sB_num === 1 ? sess1 : (sB_num === 2 ? sess2 : sess3);
+      if (!sessA || !sessB) return;
+
+      let slotsA = getUnfilledSlots(sessA);
+      let slotsB = getUnfilledSlots(sessB);
+
+      while (slotsA.length > 0 && slotsB.length > 0) {
+        // Find academic candidates with at least 2 remaining quota eligible for both sessions
+        const pairCandidates = activeProctors.filter(p => {
+          if (p.type !== 'academic') return false;
+          if (p.quota - p.assignedCount < 2) return false;
+          return canAssign(p, date, sA_num) && canAssign(p, date, sB_num);
+        });
+
+        if (pairCandidates.length === 0) break;
+
+        pairCandidates.sort((a, b) => {
+          const pairName = sA_num === 1 ? '1-2' : '2-3';
+          const prefA = a.preferredPair === pairName ? 10 : (a.preferredPair === 'any' ? 5 : 2);
+          const prefB = b.preferredPair === pairName ? 10 : (b.preferredPair === 'any' ? 5 : 2);
+
+          const remA = a.quota - a.assignedCount;
+          const remB = b.quota - b.assignedCount;
+
+          const scoreA = (prefA * 1000) + (remA * 50);
+          const scoreB = (prefB * 1000) + (remB * 50);
+
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return Math.random() - 0.5;
+        });
+
+        const chosen = pairCandidates[0];
+        const roomA = slotsA.shift();
+        const roomB = slotsB.shift();
+
+        doAssign(chosen, dayIndex, date, dayName, sA_num, roomA);
+        doAssign(chosen, dayIndex, date, dayName, sB_num, roomB);
+      }
+    };
+
+    // Smart pairing order: align with the session carrying higher room density
+    const count1 = (sess1?.rooms || []).length;
+    const count3 = (sess3?.rooms || []).length;
+    if (count1 >= count3) {
+      tryFormPairs(1, 2);
+      tryFormPairs(2, 3);
+    } else {
+      tryFormPairs(2, 3);
+      tryFormPairs(1, 2);
     }
-    return a.sessionNumber - b.sessionNumber;
   });
 
   // -------------------------------------------------------------
-  // STEP 3: Assign Proctors with Academic Obligation & Administrative Equality
+  // PHASE 2: Complete Remaining Slots
+  // Priority 1: Academics with unfulfilled odd quotas (15, 13, 11, etc.)
+  // Priority 2: Administrators (absorb isolated single sessions with balanced ceiling)
   // -------------------------------------------------------------
-  allSlots.forEach(slotItem => {
-    const { date, dayName, sessionNumber, roomObj, dayIndex, slotIndex } = slotItem;
-    const proctorsInThisSession = getProctorSet(date, sessionNumber);
-
-    // Filter candidates based on inviolable constraints
-    const eligibleCandidates = activeProctors.filter(proctor => {
-      // Hard 1: Quota check
-      if (proctor.assignedCount >= proctor.quota) return false;
-
-      // Hard 2: No double-booking in this same session (physically impossible)
-      if (proctorsInThisSession.has(proctor.id)) return false;
-
-      // Hard 3: User-defined exceptions check (date_all or date_sX) - Inviolable
-      const dayWideKey = `${date}_all`;
-      const sessionKey = `${date}_s${sessionNumber}`;
-      if (proctor.exceptions.has(dayWideKey) || proctor.exceptions.has(sessionKey)) {
-        return false;
-      }
-
-      // Hard 4: Explicit Session 3 exclusion check - Inviolable
-      if (sessionNumber === 3 && proctor.excludeSession3) {
-        return false;
-      }
-
-      // Hard 5: Daily session limits
-      const todayCount = proctor.dailySessionCount[date] || 0;
-      if (proctor.type === 'administrative') {
-        // Administrative staff: strict MAX 2 sessions per day (to protect office work)
-        if (todayCount >= 2) return false;
-      } else {
-        // Academic staff: Max 3 sessions per day (permitted when needed to complete 100% quota)
-        if (todayCount >= 3) return false;
-      }
-
-      return true;
+  const remainingSlots = [];
+  days.forEach((day, dayIndex) => {
+    (day.sessions || []).forEach(sess => {
+      (sess.rooms || []).forEach(r => {
+        const cap = r.capacity || 1;
+        const filled = (r.assignedProctors || []).length;
+        for (let i = filled; i < cap; i++) {
+          remainingSlots.push({
+            dayIndex,
+            date: day.date,
+            dayName: day.dayName,
+            sessionNumber: sess.sessionNumber,
+            roomObj: r,
+            sessionDensity: (sess.rooms || []).length
+          });
+        }
+      });
     });
+  });
 
-    if (eligibleCandidates.length === 0) {
+  // Sort remaining slots by session density descending
+  remainingSlots.sort((a, b) => b.sessionDensity - a.sessionDensity);
+
+  const unassignedSlots = [];
+
+  remainingSlots.forEach(slotItem => {
+    const { dayIndex, date, dayName, sessionNumber, roomObj } = slotItem;
+
+    const candidates = activeProctors.filter(p => canAssign(p, date, sessionNumber));
+    if (candidates.length === 0) {
       unassignedSlots.push({
         date,
         dayName,
         session: sessionNumber,
         room: roomObj.room,
-        slotIndex: slotIndex + 1,
+        slotIndex: roomObj.assignedProctors.length + 1,
         reason: activeProctors.every(p => p.assignedCount >= p.quota)
           ? 'استنفاد جميع أنصبة المراقبين'
           : 'تعارض زمني أو استثناءات أو قيود الجلسات'
@@ -144,46 +233,51 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       return;
     }
 
-    // Candidate Ranking & Selection
-    eligibleCandidates.sort((a, b) => {
-      const scoreA = calculateCandidateScore(a, date, sessionNumber);
-      const scoreB = calculateCandidateScore(b, date, sessionNumber);
-
-      if (scoreB !== scoreA) {
-        return scoreB - scoreA;
-      }
+    candidates.sort((a, b) => {
+      let scoreA = 0;
+      let scoreB = 0;
 
       const remA = a.quota - a.assignedCount;
       const remB = b.quota - b.assignedCount;
-      if (remB !== remA) {
-        return remB - remA;
+
+      // Academics still needing quota get absolute priority to achieve 100% contract fulfillment
+      if (a.type === 'academic') {
+        scoreA += 50000 + (remA * 500);
+        const tA = a.dailySessions[date] || new Set();
+        if ((sessionNumber === 2 && (tA.has(1) || tA.has(3))) ||
+            (sessionNumber === 1 && tA.has(2)) ||
+            (sessionNumber === 3 && tA.has(2))) {
+          scoreA += 40000; // Complete a pair if already present today
+        }
+      } else {
+        // Administrative staff: Absorbers of single / filler sessions
+        scoreA += 20000;
+        const progress = a.quota > 0 ? (a.assignedCount / a.quota) : 1;
+        scoreA += (1 - progress) * 20000;
+        scoreA += remA * 100;
       }
 
+      if (b.type === 'academic') {
+        scoreB += 50000 + (remB * 500);
+        const tB = b.dailySessions[date] || new Set();
+        if ((sessionNumber === 2 && (tB.has(1) || tB.has(3))) ||
+            (sessionNumber === 1 && tB.has(2)) ||
+            (sessionNumber === 3 && tB.has(2))) {
+          scoreB += 40000;
+        }
+      } else {
+        scoreB += 20000;
+        const progress = b.quota > 0 ? (b.assignedCount / b.quota) : 1;
+        scoreB += (1 - progress) * 20000;
+        scoreB += remB * 100;
+      }
+
+      if (scoreB !== scoreA) return scoreB - scoreA;
       return Math.random() - 0.5;
     });
 
-    const selected = eligibleCandidates[0];
-    roomObj.assignedProctors.push(selected.name);
-    selected.assignedCount++;
-    proctorsInThisSession.add(selected.id);
-    selected.daysWorked.add(date);
-
-    selected.dailySessionCount[date] = (selected.dailySessionCount[date] || 0) + 1;
-    if (!selected.dailySessions[date]) {
-      selected.dailySessions[date] = new Set();
-    }
-    selected.dailySessions[date].add(sessionNumber);
-
-    selected.assignments.push({
-      dayIndex,
-      date,
-      dayName,
-      sessionNumber,
-      room: roomObj.room,
-      slotIndex: slotIndex + 1
-    });
-
-    filledSlots++;
+    const chosen = candidates[0];
+    doAssign(chosen, dayIndex, date, dayName, sessionNumber, roomObj);
   });
 
   // Keep single string proctor property synchronized for backwards compatibility
@@ -206,6 +300,17 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
   // -------------------------------------------------------------
   // STEP 5: Calculate Detailed Analytics & Metrics
   // -------------------------------------------------------------
+  let totalSlots = 0;
+  let filledSlots = 0;
+  days.forEach(d => {
+    (d.sessions || []).forEach(s => {
+      (s.rooms || []).forEach(r => {
+        totalSlots += (r.capacity || 1);
+        filledSlots += (r.assignedProctors || []).length;
+      });
+    });
+  });
+
   let consecutivePairsCount = 0;
   let singleSessionDaysCount = 0;
   let threeSessionDaysCount = 0;
@@ -283,63 +388,4 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       unassignedList: unassignedSlots
     }
   };
-}
-
-/**
- * Heuristic scoring calculation for candidates
- * Enforces:
- * 1. Mandatory Academic Contract Obligation: Academics have priority to fulfill 100% of their quota.
- * 2. Administrative Ceiling & Fair Balancing: Administrative quota is a MAXIMUM CEILING, distributed
- *    with strict equality so all administrators carry a balanced, fair proportion of their ceiling.
- */
-function calculateCandidateScore(candidate, dayDate, sessionNum) {
-  let score = 0;
-  const todaySessions = candidate.dailySessions[dayDate] || new Set();
-  const todayCount = candidate.dailySessionCount[dayDate] || 0;
-  const remainingQuota = candidate.quota - candidate.assignedCount;
-  const progressRatio = candidate.quota > 0 ? (candidate.assignedCount / candidate.quota) : 1;
-
-  // 1. Mandatory Academic Contract Load Priority (+25,000 pts)
-  // Ensures academics are given absolute priority to fulfill 100% of their teaching contract quota
-  if (candidate.type === 'academic') {
-    score += 25000;
-    score += (1 - progressRatio) * 12000;
-    score += (remainingQuota * 150);
-
-    // Consecutive pairing bonus (+12,000 pts)
-    if (sessionNum === 2 && todaySessions.has(1)) {
-      score += 12000;
-    }
-    if (sessionNum === 3 && todaySessions.has(2)) {
-      score += 12000;
-    }
-  } else {
-    // 2. Administrative Staff: Quota is a MAXIMUM CEILING, distributed with strict fairness
-    // Administrators progress together in parallel (balanced percentage of ceiling)
-    score += (1 - progressRatio) * 18000; // Strong balancing weight among administrators
-    score += (remainingQuota * 100);
-
-    if (todayCount === 0) {
-      score += 2500; // Natural steady daily presence across the schedule
-    }
-    if (sessionNum === 3 && todaySessions.has(1)) {
-      score += 5000; // 1+3 session is completely allowed for administrators
-    }
-  }
-
-  // 3. Emergency 3rd Session Demotion (Academics only, last resort)
-  if (todayCount >= 2) {
-    score -= 40000;
-  }
-
-  // 4. Preferred Pair Respect
-  if (candidate.preferredPair === '1-2') {
-    if (sessionNum === 1 || sessionNum === 2) score += 3000;
-    if (sessionNum === 3) score -= 8000;
-  } else if (candidate.preferredPair === '2-3') {
-    if (sessionNum === 2 || sessionNum === 3) score += 3000;
-    if (sessionNum === 1) score -= 8000;
-  }
-
-  return score;
 }
