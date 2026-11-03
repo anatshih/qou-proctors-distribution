@@ -43,6 +43,7 @@ export default function ResultsTab({
   const [selectedAssistantProctorId, setSelectedAssistantProctorId] = useState('');
   const [assistantSearch, setAssistantSearch] = useState('');
   const [assistantRoleFilter, setAssistantRoleFilter] = useState('all'); // 'all' | 'academic' | 'administrative'
+  const [assistantPrintTarget, setAssistantPrintTarget] = useState('single'); // 'single' | 'all'
 
   // Quick Swap Modal state
   const [activeSwapSlot, setActiveSwapSlot] = useState(null);
@@ -576,32 +577,48 @@ export default function ResultsTab({
     setTimeout(cleanup, 4000);
   };
 
-  const handlePrintAssistantDossier = (singleProctorId = null) => {
+  const handlePrintAssistantDossier = (target = 'single', proctorId = null) => {
+    setAssistantPrintTarget(target);
+    if (proctorId) {
+      setSelectedAssistantProctorId(proctorId);
+    }
+
     const styleId = 'dynamic-assistant-print-style';
     injectPrintStyle(styleId, `
       @media print {
         @page {
           size: A4 portrait !important;
-          margin: 8mm 8mm 10mm 8mm !important;
+          margin: 6mm 6mm 6mm 6mm !important;
+        }
+        html, body {
+          width: 100% !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          scrollbar-width: none !important;
         }
       }
     `);
 
-    if (singleProctorId) {
-      setSelectedAssistantProctorId(singleProctorId);
-    }
-
     document.body.classList.add('printing-assistant-dossier');
-    setTimeout(() => window.print(), 150);
+    setTimeout(() => window.print(), 250);
 
     const cleanup = () => {
       document.body.classList.remove('printing-assistant-dossier');
+      setAssistantPrintTarget('single');
       const el = document.getElementById(styleId);
       if (el) el.remove();
       window.removeEventListener('afterprint', cleanup);
     };
     window.addEventListener('afterprint', cleanup);
-    setTimeout(cleanup, 4000);
+    setTimeout(cleanup, 5000);
   };
 
   const handlePrintExecutiveSummary = () => {
@@ -728,6 +745,311 @@ export default function ResultsTab({
       return copy;
     });
     showToast(`✓ تم تفريغ المقعد وجعله شاغراً`);
+  };
+
+  // -------------------------------------------------------------
+  // Academic Assistant Proctor Dossier Card Renderer (Fitted 1 Page)
+  // -------------------------------------------------------------
+  const renderProctorDossierCard = (proctor, pageNum, totalPages, isPrint = false) => {
+    if (!proctor) return null;
+    const briefing = generateProctorBriefing(proctor);
+    const isAcademic = (proctor.type || 'academic') === 'academic';
+    const quota = Number(proctor.quota) || 0;
+    const assignedCount = Number(proctor.assignedCount) || 0;
+    const hasManyAssignments = briefing.assignments.length > 7;
+
+    const half = Math.ceil(briefing.assignments.length / 2);
+    const col1 = briefing.assignments.slice(0, half);
+    const col2 = briefing.assignments.slice(half);
+
+    return (
+      <div 
+        key={proctor.id} 
+        className={`assistant-dossier-card bg-white rounded-2xl border border-slate-200 shadow-sm ${
+          isPrint ? 'p-3.5' : 'p-6'
+        } space-y-3 flex flex-col justify-between`}
+      >
+        {/* Top University Official Header */}
+        <div className="border-b-2 border-qou-primary pb-2.5">
+          <div className="flex items-center justify-between">
+            <div className="text-right">
+              <h2 className="text-base font-black text-slate-900 tracking-wide">
+                جامعة القدس المفتوحة — فرع الخليل
+              </h2>
+              <h3 className="text-xs font-bold text-qou-primary">
+                مكتب المساعد الأكاديمي | قسم الامتحانات
+              </h3>
+              <p className="text-[10px] text-slate-600 mt-0.5">
+                الفصل الدراسي: <strong>{semesterCode}</strong> | نوع الامتحان: <strong>{examType}</strong>
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-10 h-10 mx-auto mb-1 flex items-center justify-center">
+                <img src="./logo.png" alt="شعار الجامعة" className="w-full h-full object-contain" />
+              </div>
+              <h1 className="text-xs sm:text-sm font-black text-slate-900">
+                ملف إحاطة المساعد الأكاديمي وتبريرات التوزيع
+              </h1>
+              <span className="text-[9.5px] text-indigo-900 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 inline-block mt-0.5">
+                مذكرة إدارية مرجعية موجهة لسعادة المساعد الأكاديمي الدكتور مراد الجندي
+              </span>
+            </div>
+
+            <div className="text-left text-[10px] text-slate-500 space-y-0.5">
+              <div>تاريخ التقرير: <strong>{new Date().toLocaleDateString('ar-EG')}</strong></div>
+              <div>حالة التدقيق: <strong className="text-emerald-700">معتمد ومستوفى 100%</strong></div>
+              <div>
+                الصفحة: <strong className="text-slate-800 font-mono">{pageNum} من {totalPages}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Middle Content Container */}
+        <div className="space-y-2.5 flex-1">
+          {/* Proctor Identity & KPI Badges */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                  isAcademic ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {isAcademic ? '🎓 كادر أعضاء هيئة التدريس (أكاديمي)' : '💼 كادر الموظفين (إداري)'}
+                </span>
+                <span className="text-slate-400 font-mono text-[10.5px]">#{proctor.id}</span>
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-slate-900">
+                {proctor.name}
+              </h3>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-center text-xs">
+              <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                <span className="text-[9.5px] text-slate-500 block">النصاب المطلوب</span>
+                <strong className="text-xs font-black text-slate-800">{quota} جلسة</strong>
+              </div>
+
+              <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                <span className="text-[9.5px] text-emerald-600 block">المنفذ فعلياً</span>
+                <strong className="text-xs font-black text-emerald-800">{assignedCount} جلسة</strong>
+              </div>
+
+              <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                <span className="text-[9.5px] text-indigo-600 block">نسبة الاستيفاء</span>
+                <strong className="text-xs font-black text-indigo-800">
+                  {quota > 0 && assignedCount === quota ? '100% (تفاضل 0)' : `${assignedCount} من ${quota}`}
+                </strong>
+              </div>
+
+              <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                <span className="text-[9.5px] text-purple-600 block">أيام الحضور الفعلية</span>
+                <strong className="text-xs font-black text-purple-800">{briefing.daysWorkedCount} أيام</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 1: Sessions Table */}
+          <div className="space-y-1">
+            <h4 className="text-[11px] font-black text-slate-900 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-qou-primary" />
+                <span>أولاً: جدول جلسات وقاعات المراقبة المكلف بها الزميل:</span>
+              </span>
+              <span className="text-[10px] text-slate-500 font-normal">
+                (إجمالي: {briefing.assignments.length} جلسة)
+              </span>
+            </h4>
+
+            {briefing.assignments.length === 0 ? (
+              <div className="p-3 text-center text-slate-400 font-bold text-xs border border-dashed border-slate-200 rounded-xl">
+                لا توجد جلسات مسندة لهذا المراقب.
+              </div>
+            ) : hasManyAssignments ? (
+              /* Split into 2 columns side by side for large session counts (Guarantee 1 Page) */
+              <div className="grid grid-cols-2 gap-2 items-start">
+                {/* Column 1 */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-right text-[10px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200 text-[9.5px]">
+                        <th className="py-1 px-1.5 w-6 text-center border-l border-slate-200">#</th>
+                        <th className="py-1 px-2 border-l border-slate-200 font-black">اليوم والتاريخ</th>
+                        <th className="py-1 px-1.5 w-14 text-center border-l border-slate-200 font-black">الجلسة</th>
+                        <th className="py-1 px-1.5 w-16 text-center border-l border-slate-200 font-black">القاعة</th>
+                        <th className="py-1 px-2">الزميل المشترك</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {col1.map((asgn, aIdx) => (
+                        <tr key={aIdx} className="hover:bg-slate-50/80">
+                          <td className="py-0.5 px-1.5 text-center text-slate-400 font-mono border-l border-slate-200">
+                            {aIdx + 1}
+                          </td>
+                          <td className="py-0.5 px-2 font-bold text-slate-900 border-l border-slate-200 whitespace-nowrap">
+                            {asgn.dayName} <span className="text-[8.5px] font-mono text-slate-500">({asgn.date})</span>
+                          </td>
+                          <td className="py-0.5 px-1.5 text-center border-l border-slate-200">
+                            <span className="bg-slate-100 px-1 py-0.5 rounded text-[9px] font-bold text-slate-700">
+                              جلسة {asgn.sessionNumber}
+                            </span>
+                          </td>
+                          <td className="py-0.5 px-1.5 text-center font-black text-slate-900 border-l border-slate-200 bg-slate-50/50 whitespace-nowrap">
+                            قاعة {asgn.room}
+                          </td>
+                          <td className="py-0.5 px-2 truncate max-w-[100px]" title={asgn.coProctor || 'منفردة'}>
+                            {asgn.coProctor ? (
+                              <span className="text-indigo-900 font-semibold text-[9px]">
+                                {asgn.coProctor}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[9px]">منفردة</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Column 2 */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-right text-[10px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200 text-[9.5px]">
+                        <th className="py-1 px-1.5 w-6 text-center border-l border-slate-200">#</th>
+                        <th className="py-1 px-2 border-l border-slate-200 font-black">اليوم والتاريخ</th>
+                        <th className="py-1 px-1.5 w-14 text-center border-l border-slate-200 font-black">الجلسة</th>
+                        <th className="py-1 px-1.5 w-16 text-center border-l border-slate-200 font-black">القاعة</th>
+                        <th className="py-1 px-2">الزميل المشترك</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {col2.map((asgn, aIdx) => (
+                        <tr key={aIdx} className="hover:bg-slate-50/80">
+                          <td className="py-0.5 px-1.5 text-center text-slate-400 font-mono border-l border-slate-200">
+                            {half + aIdx + 1}
+                          </td>
+                          <td className="py-0.5 px-2 font-bold text-slate-900 border-l border-slate-200 whitespace-nowrap">
+                            {asgn.dayName} <span className="text-[8.5px] font-mono text-slate-500">({asgn.date})</span>
+                          </td>
+                          <td className="py-0.5 px-1.5 text-center border-l border-slate-200">
+                            <span className="bg-slate-100 px-1 py-0.5 rounded text-[9px] font-bold text-slate-700">
+                              جلسة {asgn.sessionNumber}
+                            </span>
+                          </td>
+                          <td className="py-0.5 px-1.5 text-center font-black text-slate-900 border-l border-slate-200 bg-slate-50/50 whitespace-nowrap">
+                            قاعة {asgn.room}
+                          </td>
+                          <td className="py-0.5 px-2 truncate max-w-[100px]" title={asgn.coProctor || 'منفردة'}>
+                            {asgn.coProctor ? (
+                              <span className="text-indigo-900 font-semibold text-[9px]">
+                                {asgn.coProctor}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[9px]">منفردة</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* Single Table for standard session counts (<= 7) */
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-right text-[10.5px] border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200 text-[10px]">
+                      <th className="py-1 px-3 w-10 text-center border-l border-slate-200">#</th>
+                      <th className="py-1 px-3 border-l border-slate-200 font-black">اليوم والتاريخ</th>
+                      <th className="py-1 px-3 w-24 text-center border-l border-slate-200 font-black">رقم الجلسة</th>
+                      <th className="py-1 px-3 w-28 text-center border-l border-slate-200 font-black">القاعة المسندة</th>
+                      <th className="py-1 px-3 border-l border-slate-200">طبيعة التكليف والزميل المشترك</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {briefing.assignments.map((asgn, aIdx) => (
+                      <tr key={aIdx} className="hover:bg-slate-50/80">
+                        <td className="py-1 px-3 text-center text-slate-400 font-mono border-l border-slate-200">
+                          {aIdx + 1}
+                        </td>
+                        <td className="py-1 px-3 font-bold text-slate-900 border-l border-slate-200">
+                          {asgn.dayName} <span className="font-mono text-slate-500 text-[9.5px]">({asgn.date})</span>
+                        </td>
+                        <td className="py-1 px-3 text-center border-l border-slate-200">
+                          <span className="bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-700 text-[9.5px]">
+                            جلسة {asgn.sessionNumber}
+                          </span>
+                        </td>
+                        <td className="py-1 px-3 text-center font-black text-slate-900 border-l border-slate-200 bg-slate-50/50">
+                          قاعة {asgn.room}
+                        </td>
+                        <td className="py-1 px-3 border-l border-slate-200">
+                          {asgn.coProctor ? (
+                            <span className="text-indigo-900 font-bold flex items-center gap-1 text-[9.5px]">
+                              <Users className="w-3 h-3 text-indigo-600 shrink-0" />
+                              <span>مشتركة مع الزميل: <strong>{asgn.coProctor}</strong></span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-[9.5px]">مراقبة منفردة</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Administrative Justifications (Third Person - Addressed to Dr. Murad Al-Jundi) */}
+          <div className="space-y-1">
+            <h4 className="text-[11px] font-black text-slate-900 flex items-center gap-1.5">
+              <Award className="w-3.5 h-3.5 text-emerald-700" />
+              <span>ثانياً: الموجز الإداري والتبريرات المرفوعة للمساعد الأكاديمي (للرد والاعتماد):</span>
+            </h4>
+
+            <div className="bg-gradient-to-r from-emerald-50/40 to-indigo-50/30 border border-emerald-200/80 rounded-xl p-2.5 space-y-1">
+              {briefing.points.map((pt, pIdx) => (
+                <div key={pIdx} className="flex items-start gap-2 text-[10px]">
+                  <span className="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 font-bold text-[8.5px] mt-0.5">
+                    {pIdx + 1}
+                  </span>
+                  <div className="space-y-0.5 leading-snug">
+                    <strong className="text-slate-900 font-black">{pt.title} </strong>
+                    <span className="text-slate-700">{pt.text}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Official Signatures Footer */}
+        <div className="border-t-2 border-slate-300 pt-2 mt-1 flex items-center justify-between text-[10.5px] text-slate-700">
+          <div className="space-y-0.5">
+            <div className="font-black text-slate-900">المساعد الأكاديمي — فرع الخليل</div>
+            <div className="text-slate-600 text-[9.5px]">الدكتور مراد الجندي</div>
+            <div className="text-[9px] text-slate-400 font-mono">التوقيع والاعتماد: _______________</div>
+          </div>
+
+          <div className="text-center text-slate-500 text-[9px] space-y-0.5">
+            <div>وثيقة إحاطة إدارية معتمدة صادرة عن منظومة توزيع الامتحانات</div>
+            <div className="font-bold text-slate-700 font-mono">
+              [ صفحة {pageNum} من {totalPages} ]
+            </div>
+          </div>
+
+          <div className="space-y-0.5 text-left">
+            <div className="font-black text-slate-900">قسم الامتحانات — فرع الخليل</div>
+            <div className="text-slate-600 text-[9.5px]">إعداد المنظومة: أ. أحمد النتشة</div>
+            <div className="text-[9px] text-slate-400 font-mono">التاريخ: {new Date().toLocaleDateString('ar-EG')}</div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // -------------------------------------------------------------
@@ -1499,9 +1821,9 @@ export default function ResultsTab({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handlePrintAssistantDossier(currentAssistantProctor?.id)}
+                  onClick={() => handlePrintAssistantDossier('single', currentAssistantProctor?.id)}
                   className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-black px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
-                  title="طباعة بطاقة التبرير الخاصة بالمراقب المحدد حالياً"
+                  title="طباعة بطاقة التبرير الخاصة بالمراقب المحدد حالياً في صفحة واحدة A4"
                 >
                   <Printer className="w-4 h-4" />
                   <span>طباعة بطاقة الزميل المختار PDF</span>
@@ -1509,9 +1831,9 @@ export default function ResultsTab({
 
                 <button
                   type="button"
-                  onClick={() => handlePrintAssistantDossier(null)}
+                  onClick={() => handlePrintAssistantDossier('all')}
                   className="bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 cursor-pointer"
-                  title="طباعة الملف التبريري الشامل لكافة الزملاء (صفحة لكل زميل)"
+                  title="طباعة الملف التبريري الشامل لكافة الزملاء (43 صفحة PDF - صفحة واحدة موائمة لكل زميل)"
                 >
                   <BookOpen className="w-4 h-4 text-indigo-600" />
                   <span>طباعة الملف الشامل لكافة المراقبين (43 صفحة PDF)</span>
@@ -1568,195 +1890,38 @@ export default function ResultsTab({
             </div>
           </div>
 
-          {/* Dossier Card Container (Rendered on Screen & in Print) */}
-          <div className="print-area print-area-assistant space-y-6">
+          {/* On-Screen Interactive View (Single Proctor Display) */}
+          <div className="assistant-screen-view space-y-4">
             {currentAssistantProctor ? (
-              (() => {
-                const briefing = generateProctorBriefing(currentAssistantProctor);
-                const isAcademic = (currentAssistantProctor.type || 'academic') === 'academic';
-
-                return (
-                  <div className="assistant-dossier-card bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
-                    
-                    {/* Official University Header */}
-                    <div className="border-b-2 border-qou-primary pb-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-right">
-                          <h2 className="text-lg font-black text-slate-900 tracking-wide">جامعة القدس المفتوحة — فرع الخليل</h2>
-                          <h3 className="text-xs font-bold text-qou-primary">مكتب المساعد الأكاديمي | قسم الامتحانات</h3>
-                          <p className="text-[10px] text-slate-600 mt-0.5">
-                            الفصل الدراسي: <strong>{semesterCode}</strong> | نوع الامتحان: <strong>{examType}</strong>
-                          </p>
-                        </div>
-
-                        <div className="text-center">
-                          <div className="w-12 h-12 mx-auto mb-1 flex items-center justify-center">
-                            <img src="./logo.png" alt="شعار الجامعة" className="w-full h-full object-contain" />
-                          </div>
-                          <h1 className="text-sm font-black text-slate-900">
-                            ملف إحاطة المساعد الأكاديمي وتبريرات التوزيع
-                          </h1>
-                          <span className="text-[10px] text-indigo-900 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 inline-block mt-0.5">
-                            مذكرة إدارية مرجعية موجهة لسعادة المساعد الأكاديمي الدكتور مراد الجندي
-                          </span>
-                        </div>
-
-                        <div className="text-left text-[10px] text-slate-500 space-y-0.5">
-                          <div>تاريخ التقرير: <strong>{new Date().toLocaleDateString('ar-EG')}</strong></div>
-                          <div>حالة التدقيق: <strong className="text-emerald-700">معتمد ومستوفى 100%</strong></div>
-                          <div>رمز الملف: <strong>REF-AD-1261</strong></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Proctor Identity & KPI Badge Banner */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                            isAcademic ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {isAcademic ? '🎓 كادر أعضاء هيئة التدريس (أكاديمي)' : '💼 كادر الموظفين (إداري)'}
-                          </span>
-                          <span className="text-slate-400 font-mono text-xs">#{currentAssistantProctor.id}</span>
-                        </div>
-                        <h3 className="text-base font-black text-slate-900">
-                          {currentAssistantProctor.name}
-                        </h3>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 text-center">
-                        <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-slate-500 block">النصاب المطلوب</span>
-                          <strong className="text-sm font-black text-slate-800">{currentAssistantProctor.quota} جلسة</strong>
-                        </div>
-
-                        <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-emerald-600 block">المنفذ فعلياً</span>
-                          <strong className="text-sm font-black text-emerald-800">{currentAssistantProctor.assignedCount} جلسة</strong>
-                        </div>
-
-                        <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-indigo-600 block">نسبة الاستيفاء</span>
-                          <strong className="text-sm font-black text-indigo-800">100% (تفاضل 0)</strong>
-                        </div>
-
-                        <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-purple-600 block">أيام الحضور الفعلية</span>
-                          <strong className="text-sm font-black text-purple-800">{briefing.daysWorkedCount} أيام</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section 1: Explicit Sessions Table */}
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4 text-qou-primary" />
-                        <span>أولاً: جدول جلسات وقاعات المراقبة المكلف بها الزميل:</span>
-                      </h4>
-
-                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                        <table className="w-full text-right text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200 text-[11px]">
-                              <th className="py-2 px-3 w-10 text-center border-l border-slate-200">#</th>
-                              <th className="py-2 px-3 border-l border-slate-200 font-black">اليوم والتاريخ</th>
-                              <th className="py-2 px-3 w-28 text-center border-l border-slate-200 font-black">رقم الجلسة</th>
-                              <th className="py-2 px-3 w-32 text-center border-l border-slate-200 font-black">القاعة المسندة</th>
-                              <th className="py-2 px-3 border-l border-slate-200">طبيعة التكليف والزميل المشترك</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 text-[11px]">
-                            {briefing.assignments.length === 0 ? (
-                              <tr>
-                                <td colSpan="5" className="py-6 text-center text-slate-400 font-bold">
-                                  لا توجد جلسات مسندة لهذا المراقب.
-                                </td>
-                              </tr>
-                            ) : (
-                              briefing.assignments.map((asgn, aIdx) => (
-                                <tr key={aIdx} className="hover:bg-slate-50/80">
-                                  <td className="py-1.5 px-3 text-center text-slate-400 font-mono border-l border-slate-200">
-                                    {aIdx + 1}
-                                  </td>
-                                  <td className="py-1.5 px-3 font-bold text-slate-900 border-l border-slate-200">
-                                    {asgn.dayName} <span className="font-mono text-slate-500 text-[10px]">({asgn.date})</span>
-                                  </td>
-                                  <td className="py-1.5 px-3 text-center border-l border-slate-200">
-                                    <span className="bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-700">
-                                      جلسة {asgn.sessionNumber}
-                                    </span>
-                                  </td>
-                                  <td className="py-1.5 px-3 text-center font-black text-slate-900 border-l border-slate-200 bg-slate-50/50">
-                                    قاعة {asgn.room}
-                                  </td>
-                                  <td className="py-1.5 px-3 border-l border-slate-200">
-                                    {asgn.coProctor ? (
-                                      <span className="text-indigo-900 font-bold flex items-center gap-1">
-                                        <Users className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                                        <span>مشتركة مع الزميل: <strong>{asgn.coProctor}</strong></span>
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-600">مراقبة منفردة</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Section 2: Administrative Justifications (Third Person - Addressed to Dr. Murad) */}
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                        <Award className="w-4 h-4 text-emerald-700" />
-                        <span>ثانياً: الموجز الإداري والتبريرات المرفوعة للمساعد الأكاديمي (للرد والاعتماد):</span>
-                      </h4>
-
-                      <div className="bg-gradient-to-r from-emerald-50/50 to-indigo-50/40 border border-emerald-200/80 rounded-xl p-4 space-y-2.5">
-                        {briefing.points.map((pt, pIdx) => (
-                          <div key={pIdx} className="flex items-start gap-2.5 text-xs">
-                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">
-                              {pIdx + 1}
-                            </span>
-                            <div className="space-y-0.5">
-                              <strong className="text-slate-900 font-black">{pt.title} </strong>
-                              <span className="text-slate-700 leading-relaxed">{pt.text}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Official Signatures Footer */}
-                    <div className="border-t-2 border-slate-300 pt-4 mt-6 flex items-center justify-between text-xs text-slate-700">
-                      <div className="space-y-1">
-                        <div className="font-black text-slate-900">المساعد الأكاديمي — فرع الخليل</div>
-                        <div className="text-slate-600 text-[11px]">الدكتور مراد الجندي</div>
-                        <div className="text-[10px] text-slate-400 font-mono">التوقيع والاعتماد: _______________</div>
-                      </div>
-
-                      <div className="text-center text-slate-400 text-[10px]">
-                        وثيقة إحاطة إدارية معتمدة صادرة عن منظومة توزيع الامتحانات
-                      </div>
-
-                      <div className="space-y-1 text-left">
-                        <div className="font-black text-slate-900">قسم الامتحانات — فرع الخليل</div>
-                        <div className="text-slate-600 text-[11px]">إعداد المنظومة: أ. أحمد النتشة</div>
-                        <div className="text-[10px] text-slate-400 font-mono">التاريخ: {new Date().toLocaleDateString('ar-EG')}</div>
-                      </div>
-                    </div>
-
-                  </div>
-                );
-              })()
+              renderProctorDossierCard(
+                currentAssistantProctor, 
+                liveProctorStats.findIndex(p => p.id === currentAssistantProctor.id) + 1, 
+                liveProctorStats.length, 
+                false
+              )
             ) : (
               <div className="py-12 text-center text-slate-400 font-bold text-sm bg-white rounded-2xl border border-slate-200">
                 يرجى اختيار أحد الزملاء المراقبين من القائمة أعلاه لعرض ملف إحاطته.
               </div>
             )}
+          </div>
+
+          {/* Dedicated Print Area (Hidden on screen, Active during print) */}
+          <div className="print-area print-area-assistant">
+            {assistantPrintTarget === 'all' ? (
+              liveProctorStats.map((proctor, idx) => (
+                <React.Fragment key={proctor.id}>
+                  {renderProctorDossierCard(proctor, idx + 1, liveProctorStats.length, true)}
+                </React.Fragment>
+              ))
+            ) : currentAssistantProctor ? (
+              renderProctorDossierCard(
+                currentAssistantProctor, 
+                liveProctorStats.findIndex(p => p.id === currentAssistantProctor.id) + 1, 
+                liveProctorStats.length, 
+                true
+              )
+            ) : null}
           </div>
 
         </div>

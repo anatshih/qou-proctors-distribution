@@ -200,24 +200,61 @@
     page-break-inside: avoid !important;
   }
 
-  /* Academic Assistant Dossier Print Mode (A4 Portrait, 1 Page Per Proctor) */
+  /* Academic Assistant Dossier Print Mode (A4 Portrait, Exactly 1 Page Per Proctor) */
+  body.printing-assistant-dossier {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 8pt !important;
+  }
+
   body.printing-assistant-dossier .no-print,
   body.printing-assistant-dossier header,
-  body.printing-assistant-dossier nav {
+  body.printing-assistant-dossier nav,
+  body.printing-assistant-dossier .assistant-screen-view {
+    display: none !important;
+  }
+
+  body.printing-assistant-dossier .print-area-assistant {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:not(.printing-assistant-dossier) .print-area-assistant {
     display: none !important;
   }
 
   body.printing-assistant-dossier .assistant-dossier-card {
     page-break-after: always !important;
     page-break-inside: avoid !important;
-    padding: 8mm 6mm !important;
+    break-after: page !important;
+    break-inside: avoid !important;
+    height: 100vh !important;
+    max-height: 280mm !important;
+    box-sizing: border-box !important;
+    padding: 5mm 6mm !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    overflow: hidden !important;
   }
 
   body.printing-assistant-dossier .assistant-dossier-card:last-child {
     page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  body.printing-assistant-dossier .assistant-dossier-card table th,
+  body.printing-assistant-dossier .assistant-dossier-card table td {
+    padding: 1.5px 3px !important;
+    font-size: 7.5pt !important;
+    line-height: 1.15 !important;
   }
 
   /* Portal Entry Guide Print Mode (A4 Portrait) */
