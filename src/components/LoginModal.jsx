@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { ShieldCheck, UserCheck, KeyRound, LogIn, X, Check } from 'lucide-react';
-import { DEFAULT_ACCOUNTS, saveStoredUser } from '../utils/auth';
+import { saveStoredUser } from '../utils/auth';
 
 export default function LoginModal({
   isOpen,
   onClose,
   currentUser,
-  setCurrentUser
+  setCurrentUser,
+  accounts
 }) {
   if (!isOpen) return null;
 
-  const [selectedAccount, setSelectedAccount] = useState(currentUser || DEFAULT_ACCOUNTS[0]);
+  const [selectedAccount, setSelectedAccount] = useState(currentUser || accounts[0]);
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -22,9 +23,8 @@ export default function LoginModal({
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Default password is 123 for convenience or direct switch
-    if (password && password !== selectedAccount.password) {
-      setErrorMsg('كلمة المرور غير صحيحة (الافتراضية: 123)');
+    if (password !== selectedAccount.password) {
+      setErrorMsg('كلمة المرور غير صحيحة.');
       return;
     }
 
@@ -33,7 +33,6 @@ export default function LoginModal({
     onClose();
   };
 
-  // Instant Switch helper
   const handleInstantSwitch = (acc) => {
     setCurrentUser(acc);
     saveStoredUser(acc);
@@ -76,7 +75,7 @@ export default function LoginModal({
 
           {/* Accounts List */}
           <div className="space-y-2">
-            {DEFAULT_ACCOUNTS.map((acc) => {
+            {(accounts || []).map((acc) => {
               const isCurrent = currentUser?.username === acc.username;
               const isSelected = selectedAccount?.username === acc.username;
 
@@ -111,7 +110,9 @@ export default function LoginModal({
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-slate-500">{acc.badge}</div>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        المستخدم: <strong>{acc.username}</strong>
+                      </div>
                     </div>
                   </div>
 
@@ -123,7 +124,7 @@ export default function LoginModal({
                     }}
                     className="text-xs font-bold bg-white hover:bg-qou-primary hover:text-white text-qou-primary border border-qou-primary/30 px-3 py-1.5 rounded-lg transition"
                   >
-                    دخول مباشر
+                    دخول سريع
                   </button>
                 </div>
               );
@@ -134,11 +135,11 @@ export default function LoginModal({
           <form onSubmit={handleLogin} className="pt-3 border-t border-slate-100 space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                كلمة المرور لحساب ({selectedAccount?.name}):
+                كلمة المرور للحساب ({selectedAccount?.username}):
               </label>
               <input
                 type="password"
-                placeholder="كلمة المرور الافتراضية: 123"
+                placeholder="أدخل كلمة المرور"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full text-sm px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-qou-primary"

@@ -9,9 +9,12 @@ import LoginModal from './components/LoginModal';
 
 import { INITIAL_PROCTORS } from './data/initialProctors';
 import { DEFAULT_SCHEDULE, DEFAULT_TOTAL_SLOTS } from './data/defaultSchedule';
-import { getStoredUser } from './utils/auth';
+import { getStoredUser, getStoredAccounts, saveStoredAccounts, saveStoredUser } from './utils/auth';
 
 export default function App() {
+  // Accounts (Admin and Admin2)
+  const [accounts, setAccounts] = useState(() => getStoredAccounts());
+
   // Current logged in user (Super Admin or Admin)
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -75,6 +78,17 @@ export default function App() {
     }
     return null;
   });
+
+  // Sync accounts
+  useEffect(() => {
+    saveStoredAccounts(accounts);
+    // Update current user if its data changed in accounts
+    const updatedCurrent = accounts.find(a => a.role === currentUser?.role);
+    if (updatedCurrent) {
+      setCurrentUser(updatedCurrent);
+      saveStoredUser(updatedCurrent);
+    }
+  }, [accounts]);
 
   // Local Storage Sync Effects
   useEffect(() => {
@@ -195,6 +209,8 @@ export default function App() {
         setScheduleDays={setScheduleDays}
         setTotalRoomSlots={setTotalRoomSlots}
         setDistributionResult={setDistributionResult}
+        accounts={accounts}
+        setAccounts={setAccounts}
       />
 
       <LoginModal
@@ -202,6 +218,7 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         currentUser={currentUser}
         setCurrentUser={setCurrentUser}
+        accounts={accounts}
       />
 
     </div>

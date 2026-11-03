@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Settings, Download, Upload, RotateCcw, Check, AlertTriangle } from 'lucide-react';
+import { X, Settings, Download, Upload, RotateCcw, Check, Users, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { INITIAL_PROCTORS } from '../data/initialProctors';
 import { DEFAULT_SCHEDULE, DEFAULT_TOTAL_SLOTS } from '../data/defaultSchedule';
+import { DEFAULT_ACCOUNTS } from '../utils/auth';
 
 export default function SettingsModal({
   isOpen,
@@ -15,12 +16,18 @@ export default function SettingsModal({
   scheduleDays,
   setScheduleDays,
   setTotalRoomSlots,
-  setDistributionResult
+  setDistributionResult,
+  accounts,
+  setAccounts
 }) {
   if (!isOpen) return null;
 
   const [tempSemester, setTempSemester] = useState(semesterCode);
   const [tempExamType, setTempExamType] = useState(examType);
+
+  // Accounts edit state
+  const [localAccounts, setLocalAccounts] = useState(accounts || DEFAULT_ACCOUNTS);
+  const [showPasswords, setShowPasswords] = useState(false);
 
   const examTypeOptions = [
     'نصفي',
@@ -29,9 +36,18 @@ export default function SettingsModal({
     'غير مكتمل نهائي'
   ];
 
+  const handleAccountChange = (index, field, value) => {
+    setLocalAccounts(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
   const handleSave = () => {
     setSemesterCode(tempSemester.trim() || '1261');
     setExamType(tempExamType);
+    setAccounts(localAccounts);
     onClose();
   };
 
@@ -43,7 +59,8 @@ export default function SettingsModal({
       semesterCode: tempSemester,
       examType: tempExamType,
       proctors,
-      scheduleDays
+      scheduleDays,
+      accounts: localAccounts
     };
 
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -75,6 +92,10 @@ export default function SettingsModal({
         }
         if (data.semesterCode) setSemesterCode(data.semesterCode);
         if (data.examType) setExamType(data.examType);
+        if (data.accounts && Array.isArray(data.accounts)) {
+          setAccounts(data.accounts);
+          setLocalAccounts(data.accounts);
+        }
         setDistributionResult(null);
         alert('تمت استعادة النسخة الاحتياطية بنجاح!');
         onClose();
@@ -93,6 +114,8 @@ export default function SettingsModal({
       setTotalRoomSlots(DEFAULT_TOTAL_SLOTS);
       setSemesterCode('1261');
       setExamType('نصفي');
+      setAccounts(DEFAULT_ACCOUNTS);
+      setLocalAccounts(DEFAULT_ACCOUNTS);
       setDistributionResult(null);
       localStorage.clear();
       alert('تمت إعادة ضبط النظام إلى الإعدادات الافتراضية بنجاح.');
@@ -102,7 +125,7 @@ export default function SettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 rounded-t-2xl">
@@ -112,7 +135,7 @@ export default function SettingsModal({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">
-                إعدادات النظام والفصل الدراسي
+                إعدادات النظام والحسابات
               </h2>
               <p className="text-xs text-slate-500">
                 صلاحية خاصة بـ: <strong>مدير النظام (Super Admin)</strong>
@@ -128,10 +151,61 @@ export default function SettingsModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
 
-          {/* Semester & Exam Type Settings */}
-          <div className="space-y-4">
+          {/* Section 1: Accounts Management (New!) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-qou-primary" />
+                <span>إدارة بيانات تسجيل الدخول للحسابين</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => setShowPasswords(prev => !prev)}
+                className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-semibold"
+              >
+                {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                <span>{showPasswords ? 'إخفاء كلمات المرور' : 'إظهار كلمات المرور'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {localAccounts.map((acc, idx) => (
+                <div key={acc.role} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-800">{acc.name}</span>
+                    <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+                      {acc.role === 'super_admin' ? 'مدير النظام' : 'مسؤول'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">اسم المستخدم:</label>
+                    <input
+                      type="text"
+                      value={acc.username}
+                      onChange={(e) => handleAccountChange(idx, 'username', e.target.value)}
+                      className="w-full text-xs font-mono font-bold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-qou-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">كلمة المرور:</label>
+                    <input
+                      type={showPasswords ? "text" : "password"}
+                      value={acc.password}
+                      onChange={(e) => handleAccountChange(idx, 'password', e.target.value)}
+                      className="w-full text-xs font-mono font-bold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-qou-primary"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Semester & Exam Type Settings */}
+          <div className="space-y-4 pt-2 border-t border-slate-100">
             <h4 className="font-bold text-sm text-slate-800 pb-2 border-b border-slate-100">
               بيانات الدورة الامتحانية الحالية
             </h4>
@@ -179,7 +253,7 @@ export default function SettingsModal({
             </div>
           </div>
 
-          {/* Backup & Restore Section */}
+          {/* Section 3: Backup & Restore Section */}
           <div className="space-y-3 pt-3 border-t border-slate-100">
             <h4 className="font-bold text-sm text-slate-800">
               النسخ الاحتياطي واستعادة البيانات
@@ -207,7 +281,7 @@ export default function SettingsModal({
             </div>
           </div>
 
-          {/* Factory Reset */}
+          {/* Section 4: Factory Reset */}
           <div className="pt-3 border-t border-slate-100">
             <button
               type="button"
@@ -215,7 +289,7 @@ export default function SettingsModal({
               className="w-full text-xs text-rose-600 hover:text-rose-700 font-bold bg-rose-50 hover:bg-rose-100/80 border border-rose-200 rounded-xl py-2.5 transition flex items-center justify-center gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>إعادة ضبط المصنع (استعادة الكادر والجدول الأصليين)</span>
+              <span>إعادة ضبط المصنع (استعادة الكادر والجدول والحسابات الأصلية)</span>
             </button>
           </div>
 
@@ -236,7 +310,7 @@ export default function SettingsModal({
             className="px-5 py-2 text-xs font-bold bg-qou-primary hover:bg-qou-dark text-white rounded-xl shadow-md transition flex items-center gap-1.5"
           >
             <Check className="w-4 h-4" />
-            <span>حفظ الإعدادات</span>
+            <span>حفظ الإعدادات والحسابات</span>
           </button>
         </div>
 
