@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   CheckCircle2, AlertTriangle, ArrowLeft, Search, UserCheck, 
   UserPlus, UserMinus, Plus, Sparkles, Filter, Calendar, Building, 
-  RotateCcw, Check, X, ShieldAlert, Award, Clock
+  RotateCcw, Check, X, ShieldAlert, Award, Clock, History, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { sortProctors } from '../utils/proctorsHelper.js';
 import ConfirmModal from './ConfirmModal';
@@ -13,7 +13,9 @@ export default function ReviewTab({
   proctors,
   setProctors,
   totalRoomSlots,
-  onNavigateNext
+  onNavigateNext,
+  activityLog = [],
+  onLogActivity
 }) {
   const [filterMode, setFilterMode] = useState('unassigned'); // 'unassigned' | 'all' | 'overtime'
   const [selectedDay, setSelectedDay] = useState('');
@@ -23,6 +25,7 @@ export default function ReviewTab({
   const [customNameValue, setCustomNameValue] = useState('');
   const [feedbackToast, setFeedbackToast] = useState(null);
   const [confirmConfig, setConfirmConfig] = useState(null);
+  const [showActivityLog, setShowActivityLog] = useState(false);
 
   const showToast = (msg) => {
     setFeedbackToast(msg);
@@ -201,6 +204,19 @@ export default function ReviewTab({
       return nextDays;
     });
 
+    if (onLogActivity) {
+      onLogActivity({
+        action: 'assign',
+        dayName: slot.dayName,
+        date: slot.date,
+        sessionNumber: slot.sessionNumber,
+        roomName: slot.roomName,
+        proctorName: cleanName,
+        previousProctor: slot.assignedProctor || 'شاغر',
+        details: `تعيين (${cleanName}) بدلاً من (${slot.assignedProctor || 'شاغر'}) في قاعة ${slot.roomName} (جلسة ${slot.sessionNumber})`
+      });
+    }
+
     showToast(`تم تعيين (${cleanName}) في قاعة ${slot.roomName} بنجاح ✓`);
     setCustomNameInputSlot(null);
     setCustomNameValue('');
@@ -240,6 +256,18 @@ export default function ReviewTab({
 
           return nextDays;
         });
+
+        if (onLogActivity) {
+          onLogActivity({
+            action: 'clear',
+            dayName: slot.dayName,
+            date: slot.date,
+            sessionNumber: slot.sessionNumber,
+            roomName: slot.roomName,
+            proctorName: oldName,
+            details: `تفريغ مقعد (${oldName}) في قاعة ${slot.roomName} (جلسة ${slot.sessionNumber})`
+          });
+        }
 
         showToast(`تم تفريغ الخانة من (${oldName})`);
       }
@@ -690,6 +718,74 @@ export default function ReviewTab({
           </table>
         </div>
 
+      </div>
+
+      {/* Activity & Audit Trail Card */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowActivityLog(prev => !prev)}
+          className="w-full p-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100/80 transition cursor-pointer text-right"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center">
+              <History className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                <span>سجل القرارات والتعديلات الإدارية اليدوية (Audit Trail)</span>
+                <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                  {activityLog.length} إجراء موثق
+                </span>
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                توثيق زمني دقيق لكافة عمليات التبديل اليدوي، سد الشواغر، وإسناد المقاعد لضمان الحوكمة والرقابة.
+              </p>
+            </div>
+          </div>
+
+          <div className="text-slate-400">
+            {showActivityLog ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </button>
+
+        {showActivityLog && (
+          <div className="p-4 border-t border-slate-200 space-y-3">
+            {activityLog.length === 0 ? (
+              <div className="text-center py-6 text-slate-400 text-xs font-bold">
+                لا توجد تعديلات يدوية مسجلة حتى الآن. الجدول معتمد وفق مخرجات التوزيع الأصلي.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                {activityLog.map((item, idx) => (
+                  <div key={item.id || idx} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        item.action === 'assign' ? 'bg-emerald-500' :
+                        item.action === 'clear' ? 'bg-rose-500' : 'bg-blue-500'
+                      }`} />
+                      <div className="truncate">
+                        <span className="font-extrabold text-slate-900">{item.details}</span>
+                        <span className="text-[10px] text-slate-400 mr-2 font-mono">
+                          {item.dayName} ({item.date}) — جلسة {item.sessionNumber}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0 text-[10px] text-slate-500">
+                      <span className="bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-700">
+                        بواسطة: {item.actorName || 'المسؤول'}
+                      </span>
+                      <span className="font-mono text-slate-400">
+                        {item.timestamp ? new Date(item.timestamp).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bottom Action Card */}

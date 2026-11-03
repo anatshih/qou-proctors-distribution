@@ -24,7 +24,8 @@ export default function ResultsTab({
   proctors = [],
   distributionResult,
   semesterCode = '1261',
-  examType = 'نصفي'
+  examType = 'نصفي',
+  onLogActivity
 }) {
   // Main Reports Navigation:
   // 'portal_entry' | 'matrix' | 'academic_assistant' | 'executive'
@@ -790,6 +791,19 @@ export default function ResultsTab({
       }
       targetRoom.assignedProctors[slotIndex] = newProctorName;
       targetRoom.proctor = targetRoom.assignedProctors.filter(Boolean).join(' / ');
+
+      if (onLogActivity) {
+        onLogActivity({
+          action: 'assign',
+          dayName: day.dayName,
+          date: day.date,
+          sessionNumber,
+          roomName: targetRoom.room || targetRoom.roomName,
+          proctorName: newProctorName,
+          details: `تعيين (${newProctorName}) في قاعة ${targetRoom.room || targetRoom.roomName} (جلسة ${sessionNumber})`
+        });
+      }
+
       return copy;
     });
     showToast(`✓ تم تعيين المراقب (${newProctorName}) بنجاح`);
@@ -830,6 +844,17 @@ export default function ResultsTab({
       rSource.proctor = rSource.assignedProctors.filter(Boolean).join(' / ');
       rTarget.proctor = rTarget.assignedProctors.filter(Boolean).join(' / ');
 
+      if (onLogActivity) {
+        onLogActivity({
+          action: 'swap',
+          dayName: day.dayName,
+          date: day.date,
+          sessionNumber,
+          roomName: `${rSource.room || rSource.roomName} ⇄ ${rTarget.room || rTarget.roomName}`,
+          details: `تبديل متبادل بين (${p1 || 'شاغر'}) في ${rSource.room || rSource.roomName} و (${p2 || 'شاغر'}) في ${rTarget.room || rTarget.roomName} (جلسة ${sessionNumber})`
+        });
+      }
+
       return copy;
     });
     showToast(`⇄ تمت مبادلة المراقبين بين القاعتين بنجاح`);
@@ -845,11 +870,26 @@ export default function ResultsTab({
       if (!session || !session.rooms[roomIndex]) return prevDays;
 
       const targetRoom = session.rooms[roomIndex];
+      const oldName = (targetRoom.assignedProctors && targetRoom.assignedProctors[slotIndex]) || '';
+
       if (!Array.isArray(targetRoom.assignedProctors)) {
         targetRoom.assignedProctors = targetRoom.proctor ? targetRoom.proctor.split('/').map(s => s.trim()) : [];
       }
       targetRoom.assignedProctors[slotIndex] = '';
       targetRoom.proctor = targetRoom.assignedProctors.filter(Boolean).join(' / ');
+
+      if (onLogActivity && oldName) {
+        onLogActivity({
+          action: 'clear',
+          dayName: day.dayName,
+          date: day.date,
+          sessionNumber,
+          roomName: targetRoom.room || targetRoom.roomName,
+          proctorName: oldName,
+          details: `تفريغ مقعد الزميل (${oldName}) في قاعة ${targetRoom.room || targetRoom.roomName} (جلسة ${sessionNumber})`
+        });
+      }
+
       return copy;
     });
     showToast(`✓ تم تفريغ المقعد وجعله شاغراً`);

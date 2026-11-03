@@ -20,6 +20,8 @@ rules_version = '2';
 //   - updatedAt: string or timestamp (optional, 3-60 chars if string)
 //   - uploadedFileName: string (optional, max 200 chars) - original excel filename
 //   - isUserUploaded: bool (optional) - flag indicating custom excel upload
+//   - version: number (optional, int/float >= 1) - optimistic concurrency control counter
+//   - activityLog: list (optional, max 60 items) - recent activity audit trail
 //
 // Collection: qou_settings
 // Document ID: {settingId} (1-64 chars)
@@ -80,7 +82,8 @@ service cloud.firestore {
       let allowedFields = [
         'id', 'semesterCode', 'examType', 'scheduleDays', 
         'totalRoomSlots', 'proctors', 'distributionResult', 
-        'createdAt', 'updatedAt', 'uploadedFileName', 'isUserUploaded'
+        'createdAt', 'updatedAt', 'uploadedFileName', 'isUserUploaded',
+        'version', 'activityLog'
       ];
       let requiredFields = [
         'id', 'semesterCode', 'examType', 'scheduleDays', 
@@ -106,7 +109,9 @@ service cloud.firestore {
              (!('updatedAt' in data) || isValidDateOrTimestamp(data.updatedAt)) &&
              (!('uploadedFileName' in data) || (data.uploadedFileName is string && data.uploadedFileName.size() <= 200)) &&
              (!('isUserUploaded' in data) || data.isUserUploaded is bool) &&
-             (!('distributionResult' in data) || data.distributionResult == null || data.distributionResult is map);
+             (!('distributionResult' in data) || data.distributionResult == null || data.distributionResult is map) &&
+             (!('version' in data) || ((data.version is int || data.version is float) && data.version >= 1)) &&
+             (!('activityLog' in data) || (data.activityLog is list && data.activityLog.size() <= 60));
     }
 
     // Validate qou_settings documents
@@ -150,10 +155,11 @@ service cloud.firestore {
       // Create: Enforce strict schema validation, ID match, type safety, and size limits
       allow create: if isValidProject(request.resource.data, projectId);
 
-      // Update: Re-enforce domain validation and protect immutable fields (id, createdAt)
+      // Update: Re-enforce domain validation, protect immutable fields (id, createdAt), and enforce OCC versioning
       allow update: if isValidProject(request.resource.data, projectId) &&
                        request.resource.data.id == resource.data.id &&
-                       (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+                       (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt) &&
+                       (!('version' in resource.data) || !('version' in request.resource.data) || request.resource.data.version >= resource.data.version);
 
       // Delete: Allow deleting user projects, but protect the default template project from deletion
       allow delete: if resource != null &&

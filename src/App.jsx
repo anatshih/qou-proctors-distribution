@@ -263,6 +263,22 @@ export default function App() {
     }
   };
 
+  // Helper to append to activity audit log
+  const handleLogActivity = (entry) => {
+    updateActiveProject(prev => ({
+      ...prev,
+      activityLog: [
+        {
+          id: 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          timestamp: new Date().toISOString(),
+          actorName: currentUser?.name || 'مسؤول الامتحانات',
+          ...entry
+        },
+        ...(prev.activityLog || []).slice(0, 99)
+      ]
+    }));
+  };
+
   // If user is not logged in, render the Dedicated Login Gateway
   if (!currentUser) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
@@ -394,6 +410,8 @@ export default function App() {
               scheduleDays={activeProject.scheduleDays || []}
               totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
               onNavigateNext={setActiveTab}
+              activityLog={activeProject.activityLog || []}
+              onLogActivity={handleLogActivity}
             />
           )}
 
@@ -436,6 +454,8 @@ export default function App() {
               }}
               totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
               onNavigateNext={setActiveTab}
+              activityLog={activeProject.activityLog || []}
+              onLogActivity={handleLogActivity}
             />
           )}
 
@@ -453,6 +473,7 @@ export default function App() {
               distributionResult={activeProject.distributionResult}
               semesterCode={activeProject.semesterCode}
               examType={activeProject.examType}
+              onLogActivity={handleLogActivity}
             />
           )}
         </Suspense>

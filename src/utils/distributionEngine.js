@@ -39,7 +39,8 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       assignments: [], // { dayIndex, date, dayName, sessionNumber, room, slotIndex }
       daysWorked: new Set(),
       dailySessionCount: {}, // date -> number of sessions assigned
-      dailySessions: {} // date -> Set of session numbers assigned today
+      dailySessions: {}, // date -> Set of session numbers assigned today
+      tripleSessionDaysCount: 0 // strict tracker: max 1 triple day across entire period
     }));
 
   // Initialize room assignments and normalize capacities
@@ -78,6 +79,9 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       // Academic staff: normally 2 sessions; 3rd session permitted only for triple completion rule
       if (!allowThirdSession && count >= 2) return false;
       if (count >= 3) return false;
+      // Inviolable global cap: at most 1 triple session day across the entire exam period
+      if (count === 2 && (proctor.tripleSessionDaysCount || 0) >= 1) return false;
+
       const todaySessions = proctor.dailySessions[date] || new Set();
       // Strict NO-GAP: Forbid 1+3 without 2 for academics
       if (sessionNum === 3 && todaySessions.has(1) && !todaySessions.has(2)) return false;
@@ -93,6 +97,9 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
     getProctorSet(date, sessionNum).add(proctor.id);
     proctor.daysWorked.add(date);
     proctor.dailySessionCount[date] = (proctor.dailySessionCount[date] || 0) + 1;
+    if (proctor.dailySessionCount[date] === 3 && proctor.type !== 'administrative') {
+      proctor.tripleSessionDaysCount = (proctor.tripleSessionDaysCount || 0) + 1;
+    }
     if (!proctor.dailySessions[date]) proctor.dailySessions[date] = new Set();
     proctor.dailySessions[date].add(sessionNum);
 
