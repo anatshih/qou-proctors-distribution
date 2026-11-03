@@ -265,22 +265,42 @@ export default function ResultsTab({
     if (!styleEl) {
       styleEl = document.createElement('style');
       styleEl.id = styleId;
-      styleEl.innerHTML = `
-        @media print {
-          @page {
-            size: A3 landscape !important;
-            margin: 6mm 4mm 6mm 4mm !important;
-          }
-        }
-      `;
       document.head.appendChild(styleEl);
     }
+    styleEl.innerHTML = `
+      @media print {
+        @page {
+          size: A3 landscape !important;
+          margin: 4mm 4mm 4mm 4mm !important;
+        }
+        html, body {
+          width: 100% !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          overflow: visible !important;
+          scrollbar-width: none !important;
+        }
+        ::-webkit-scrollbar {
+          display: none !important;
+          width: 0 !important;
+          height: 0 !important;
+        }
+      }
+    `;
 
     document.body.classList.add('printing-a3-mode');
 
     setTimeout(() => {
       window.print();
-    }, 120);
+    }, 150);
 
     const cleanup = () => {
       document.body.classList.remove('printing-a3-mode');
@@ -942,7 +962,7 @@ export default function ResultsTab({
           <div className="print-area print-area-matrix-a3 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 lg:p-6 space-y-4">
 
             {/* Official University Print Header for A3 Matrix */}
-            <div className="border-b-2 border-qou-primary pb-3 mb-2">
+            <div className="a3-matrix-header border-b-2 border-qou-primary pb-3 mb-2">
               <div className="flex items-center justify-between">
                 
                 {/* Right: University Info */}
@@ -983,7 +1003,7 @@ export default function ResultsTab({
 
             {/* FULL A3 MATRIX TABLE (Matches Excel Matrix Layout) */}
             {matrixGridMode === 'full' ? (
-              <div className="overflow-x-auto border border-slate-300 rounded-xl shadow-inner max-h-[75vh]">
+              <div className="a3-matrix-scroll-wrapper overflow-x-auto border border-slate-300 rounded-xl shadow-inner max-h-[75vh]">
                 <table className="a3-matrix-table w-full text-center border-collapse text-[10px]">
                   <thead>
                     <tr className="bg-slate-200 text-slate-900 font-black border-b border-slate-400">
@@ -991,8 +1011,7 @@ export default function ResultsTab({
                       <th rowSpan="2" className="py-2 px-2 text-right border border-slate-300 min-w-[140px] max-w-[160px] bg-slate-200 sticky top-0 right-8 z-30 shadow-xs">اسم المراقب</th>
                       <th rowSpan="2" className="py-2 px-1 text-center border border-slate-300 w-16 bg-slate-200 sticky top-0 z-20">التصنيف</th>
                       <th rowSpan="2" className="py-2 px-1 text-center border border-slate-300 w-14 bg-slate-200 sticky top-0 z-20">النصاب/السقف</th>
-                      <th rowSpan="2" className="py-2 px-1 text-center border border-slate-300 w-12 bg-slate-200 sticky top-0 z-20">المنفذ</th>
-                      <th rowSpan="2" className="py-2 px-1 text-center border border-slate-300 w-16 bg-slate-200 sticky top-0 z-20">الحالة</th>
+                      <th rowSpan="2" className="py-2 px-1 text-center border border-slate-300 w-12 bg-slate-200 sticky top-0 z-20 border-l-2 border-slate-700 a3-info-border-left">المنفذ</th>
                       {scheduleDays.map((day, dIdx) => {
                         const sessCount = (day.sessions || []).length;
                         if (sessCount === 0) return null;
@@ -1000,7 +1019,7 @@ export default function ResultsTab({
                           <th 
                             key={dIdx} 
                             colSpan={sessCount}
-                            className="py-1 px-1 text-center border border-slate-300 bg-slate-200 text-[10px] font-black sticky top-0 z-20"
+                            className="py-1 px-1 text-center border border-slate-300 bg-slate-200 text-[10px] font-black sticky top-0 z-20 border-l-2 border-slate-700 a3-day-border-left"
                           >
                             <div>{day.dayName}</div>
                             <div className="font-mono text-[8px] text-slate-600 font-normal">({day.date})</div>
@@ -1010,18 +1029,26 @@ export default function ResultsTab({
                     </tr>
                     <tr className="bg-slate-100 text-slate-700 font-bold text-[9px] border-b-2 border-slate-400">
                       {scheduleDays.flatMap((day, dIdx) => 
-                        (day.sessions || []).map((sess, sIdx) => (
-                          <th key={`${dIdx}_${sIdx}`} className="py-1 px-1 text-center border border-slate-300 bg-slate-100 sticky top-8 z-20">
-                            ج{sess.sessionNumber}
-                          </th>
-                        ))
+                        (day.sessions || []).map((sess, sIdx) => {
+                          const isLastSessOfDay = sIdx === (day.sessions.length - 1);
+                          return (
+                            <th 
+                              key={`${dIdx}_${sIdx}`} 
+                              className={`py-1 px-1 text-center border border-slate-300 bg-slate-100 sticky top-8 z-20 ${
+                                isLastSessOfDay ? 'border-l-2 border-slate-700 a3-day-border-left' : ''
+                              }`}
+                            >
+                              ج{sess.sessionNumber}
+                            </th>
+                          );
+                        })
                       )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {filteredMatrixRows.length === 0 ? (
                       <tr>
-                        <td colSpan={6 + matrixSessions.length} className="py-8 text-center text-slate-400 font-bold">
+                        <td colSpan={5 + matrixSessions.length} className="py-8 text-center text-slate-400 font-bold">
                           لا توجد نتائج مطابقة لخيارات البحث أو الفلترة.
                         </td>
                       </tr>
@@ -1030,8 +1057,6 @@ export default function ResultsTab({
                         const quota = Number(p.quota) || 0;
                         const assigned = p.assignedCount || 0;
                         const isAcademic = (p.type || 'academic') === 'academic';
-                        const isComplete = assigned === quota && quota > 0;
-                        const isUnder = assigned < quota;
 
                         return (
                           <tr key={p.id || idx} className="hover:bg-slate-50 transition-colors">
@@ -1060,59 +1085,39 @@ export default function ResultsTab({
                             </td>
 
                             {/* Actual Assigned */}
-                            <td className="py-1 px-0.5 border border-slate-300 font-black text-qou-primary text-[10px] text-center">
+                            <td className="py-1 px-0.5 border border-slate-300 font-black text-qou-primary text-[10px] text-center border-l-2 border-slate-700 a3-info-border-left">
                               {assigned}
                             </td>
 
-                            {/* Difference / Status */}
-                            <td className="py-1 px-0.5 border border-slate-300 text-[8px] font-bold text-center">
-                              {quota === 0 ? (
-                                <span className="text-slate-400 font-normal">احتياط</span>
-                              ) : isComplete ? (
-                                <span className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
-                                  {isAcademic ? '100% عقد' : '100% سقف'}
-                                </span>
-                              ) : isUnder ? (
-                                isAcademic ? (
-                                  <span className="text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">
-                                    عجز {quota - assigned}
-                                  </span>
-                                ) : (
-                                  <span className="text-emerald-700 bg-emerald-50/70 px-1 py-0.5 rounded border border-emerald-200" title="سقف أقصى عادل">
-                                    عادل (-{quota - assigned})
-                                  </span>
-                                )
-                              ) : (
-                                <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                                  +{assigned - quota}
-                                </span>
-                              )}
-                            </td>
-
                             {/* Session Cells */}
-                            {p.sessionAssignments.map((cell, cIdx) => (
-                              <td
-                                key={cIdx}
-                                className={`py-1 px-0.5 border border-slate-300 text-[8.5px] text-center ${
-                                  cell.status === 'assigned'
-                                    ? cell.isMulti 
-                                      ? 'bg-indigo-50/90 text-indigo-950 font-black border-indigo-200' 
-                                      : 'bg-emerald-50/90 text-emerald-950 font-black'
-                                    : cell.status === 'apology'
-                                      ? 'bg-rose-50 text-rose-700 text-[7px] font-bold'
-                                      : 'text-slate-300 font-normal'
-                                }`}
-                                title={cell.status === 'assigned' ? `قاعة ${cell.room}` : cell.status === 'apology' ? 'معتذر في هذه الجلسة' : 'لا توجد مراقبة'}
-                              >
-                                {cell.status === 'assigned' ? (
-                                  <span>{cell.text}</span>
-                                ) : cell.status === 'apology' ? (
-                                  <span>معتذر</span>
-                                ) : (
-                                  <span>-</span>
-                                )}
-                              </td>
-                            ))}
+                            {p.sessionAssignments.map((cell, cIdx) => {
+                              const isDayLastSession = !matrixSessions[cIdx + 1] || matrixSessions[cIdx + 1].dayIndex !== matrixSessions[cIdx].dayIndex;
+                              return (
+                                <td
+                                  key={cIdx}
+                                  className={`py-1 px-0.5 border border-slate-300 text-[8.5px] text-center ${
+                                    isDayLastSession ? 'border-l-2 border-slate-700 a3-day-border-left' : ''
+                                  } ${
+                                    cell.status === 'assigned'
+                                      ? cell.isMulti 
+                                        ? 'bg-indigo-50/90 text-indigo-950 font-black border-indigo-200' 
+                                        : 'bg-emerald-50/90 text-emerald-950 font-black'
+                                      : cell.status === 'apology'
+                                        ? 'bg-rose-50 text-rose-700 text-[7px] font-bold'
+                                        : 'text-slate-300 font-normal'
+                                  }`}
+                                  title={cell.status === 'assigned' ? `قاعة ${cell.room}` : cell.status === 'apology' ? 'معتذر في هذه الجلسة' : 'لا توجد مراقبة'}
+                                >
+                                  {cell.status === 'assigned' ? (
+                                    <span>{cell.text}</span>
+                                  ) : cell.status === 'apology' ? (
+                                    <span>معتذر</span>
+                                  ) : (
+                                    <span>-</span>
+                                  )}
+                                </td>
+                              );
+                            })}
 
                           </tr>
                         );
@@ -1205,7 +1210,7 @@ export default function ResultsTab({
             )}
 
             {/* Official University Print Footer for A3 Matrix */}
-            <div className="border-t-2 border-slate-300 pt-3 mt-4 flex items-center justify-between text-xs text-slate-600">
+            <div className="a3-matrix-footer border-t-2 border-slate-300 pt-3 mt-4 flex items-center justify-between text-xs text-slate-600">
               <div className="font-bold">
                 جامعة القدس المفتوحة — فرع الخليل | المساعد الأكاديمي الدكتور مراد الجندي
               </div>
