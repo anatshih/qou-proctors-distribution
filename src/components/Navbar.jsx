@@ -1,5 +1,8 @@
 import React from 'react';
-import { ShieldCheck, UserCheck, Settings, LogOut, ArrowRight, FolderGit2 } from 'lucide-react';
+import { 
+  ShieldCheck, UserCheck, Settings, LogOut, ArrowRight, Check,
+  ChevronLeft, Sparkles
+} from 'lucide-react';
 import { ROLES } from '../utils/auth';
 
 export default function Navbar({ 
@@ -10,19 +13,57 @@ export default function Navbar({
   setActiveTab,
   semesterCode,
   examType,
-  onOpenSettings
+  onOpenSettings,
+  workflowStats
 }) {
   const isSuperAdmin = currentUser?.role === ROLES.SUPER_ADMIN;
 
-  const tabs = [
-    { id: 'proctors', label: 'كادر المراقبين والأنصبة', icon: '👥' },
-    { id: 'schedule', label: 'جدول القاعات والجلسات', icon: '🏫' },
-    { id: 'distribution', label: 'محرك التوزيع الذكي', icon: '⚡' },
-    { id: 'results', label: 'النتائج والفلاتر والطباعة', icon: '🖨️' },
+  const steps = [
+    {
+      id: 'schedule',
+      stepNum: 1,
+      title: '1. جدول القاعات والسعات',
+      subtitle: workflowStats?.hasSchedule 
+        ? `${workflowStats.totalSlots} شاغر مراقبة (${workflowStats.daysCount} أيام)` 
+        : 'رفع الإكسل وتحديد السعات',
+      isCompleted: Boolean(workflowStats?.hasSchedule && workflowStats?.totalSlots > 0),
+      icon: '🏢'
+    },
+    {
+      id: 'proctors',
+      stepNum: 2,
+      title: '2. كادر المراقبين والأنصبة',
+      subtitle: workflowStats?.isQuotaMatched 
+        ? 'الأنصبة مطابقة 100% ✓' 
+        : workflowStats?.hasSchedule 
+        ? `المحدد: ${workflowStats.totalQuotas} من ${workflowStats.totalSlots}` 
+        : 'تحديد الأنصبة والاستثناءات',
+      isCompleted: Boolean(workflowStats?.isQuotaMatched),
+      icon: '👥'
+    },
+    {
+      id: 'distribution',
+      stepNum: 3,
+      title: '3. التوزيع الآلي الذكي',
+      subtitle: workflowStats?.isDistributed 
+        ? 'تم التوزيع بنجاح ✓' 
+        : 'فحص الجاهزية وإطلاق التوزيع',
+      isCompleted: Boolean(workflowStats?.isDistributed),
+      icon: '⚡'
+    },
+    {
+      id: 'results',
+      stepNum: 4,
+      title: '4. النتائج والطباعة المعتمدة',
+      subtitle: 'التبديل المباشر وتصدير الكشوفات',
+      isCompleted: Boolean(workflowStats?.isDistributed),
+      icon: '🖨️'
+    }
   ];
 
   return (
-    <header className="no-print bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+    <header className="no-print bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+      
       {/* Top University Brand Bar */}
       <div className="bg-qou-primary text-white px-4 lg:px-8 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -32,7 +73,7 @@ export default function Navbar({
             <button
               type="button"
               onClick={onBackToHub}
-              className="bg-white/15 hover:bg-white/25 text-white text-xs font-black px-3 py-1.5 rounded-xl border border-white/20 transition flex items-center gap-1.5 shadow-sm"
+              className="bg-white/15 hover:bg-white/25 text-white text-xs font-black px-3 py-1.5 rounded-xl border border-white/20 transition flex items-center gap-1.5 shadow-sm cursor-pointer"
               title="العودة إلى مستودع المشاريع والفصول"
             >
               <ArrowRight className="w-3.5 h-3.5" />
@@ -82,7 +123,7 @@ export default function Navbar({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition"
+                className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition cursor-pointer"
                 title="إعدادات النظام والحسابات"
               >
                 <Settings className="w-4 h-4" />
@@ -93,7 +134,7 @@ export default function Navbar({
             <button
               type="button"
               onClick={onLogout}
-              className="bg-rose-600/80 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+              className="bg-rose-600/80 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
               title="تسجيل الخروج"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -103,28 +144,64 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Main Navigation Tabs */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-8">
-        <nav className="flex space-x-1 space-x-reverse overflow-x-auto py-2 scrollbar-none">
-          {tabs.map((tab) => {
+      {/* Main Workflow Stepper Navigation (4 Sequential Steps) */}
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-2.5">
+        <nav className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {steps.map((tab) => {
             const isActive = activeTab === tab.id;
+            const isCompleted = tab.isCompleted;
+
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold rounded-xl transition-all whitespace-nowrap ${
+                className={`p-2.5 rounded-2xl text-right transition border flex items-center justify-between gap-2 cursor-pointer ${
                   isActive
-                    ? 'bg-qou-primary text-white shadow-sm shadow-qou-primary/30'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'bg-qou-primary text-white border-qou-primary shadow-sm shadow-qou-primary/20 ring-2 ring-qou-primary/20'
+                    : isCompleted
+                    ? 'bg-emerald-50/60 hover:bg-emerald-50 border-emerald-200 text-slate-800'
+                    : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
                 }`}
+                title={`الانتقال إلى: ${tab.title}`}
               >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {/* Step Number or Completed Checkmark */}
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 transition ${
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : isCompleted
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : tab.stepNum}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="text-xs font-black truncate leading-tight">
+                      {tab.title}
+                    </div>
+                    <div className={`text-[10px] font-semibold truncate mt-0.5 ${
+                      isActive 
+                        ? 'text-white/80' 
+                        : isCompleted 
+                        ? 'text-emerald-700 font-bold' 
+                        : 'text-slate-400'
+                    }`}>
+                      {tab.subtitle}
+                    </div>
+                  </div>
+                </div>
+
+                <span className="text-base flex-shrink-0 hidden sm:inline opacity-90">
+                  {tab.icon}
+                </span>
               </button>
             );
           })}
         </nav>
       </div>
+
     </header>
   );
 }

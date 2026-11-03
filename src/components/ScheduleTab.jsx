@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Upload, FileSpreadsheet, RotateCcw, CheckCircle, AlertCircle, 
   Calendar, Building, Trash2, Printer, Eye, FileText, Check, Users,
-  SlidersHorizontal, Search, Sparkles, Layers
+  SlidersHorizontal, Search, Sparkles, Layers, ArrowLeft
 } from 'lucide-react';
 import { parseUploadedSchedule } from '../utils/excelHandler';
 
@@ -14,7 +14,8 @@ export default function ScheduleTab({
   uploadedFileName,
   setUploadedFileName,
   semesterCode,
-  examType
+  examType,
+  onNavigateNext
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -833,6 +834,49 @@ export default function ScheduleTab({
                   </div>
                 </div>
               )}
+              {/* Next Step Guidance Action Card */}
+              <div className="no-print bg-gradient-to-l from-emerald-50 to-teal-50 border border-emerald-200 rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 mt-6 shadow-sm">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-600 text-white text-xs font-black px-2.5 py-0.5 rounded-full">
+                      اكتملت الخطوة 1
+                    </span>
+                    <h4 className="text-sm font-black text-slate-900">
+                      تم اعتماد {totalRoomSlots} شاغر مراقبة عبر {scheduleDays.length} يوماً امتحانياً
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    الخطوة التالية هي تحديد أنصبة واستثناءات كادر المراقبين لتغطية الشواغر المطلوبة بدقة (المطلوب: {totalRoomSlots} مراقبة).
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onNavigateNext?.('proctors')}
+                  className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-black px-6 py-3.5 rounded-2xl shadow-md shadow-qou-primary/20 transition flex items-center gap-2 cursor-pointer"
+                >
+                  <span>الانتقال للخطوة 2: تحديد أنصبة واستثناءات المراقبين</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* Bottom Guidance Card visible across all schedule views */}
+          {viewMode !== 'cards' && (
+            <div className="no-print bg-white border border-slate-200 rounded-3xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+              <div className="text-xs text-slate-600">
+                <strong className="text-slate-800 font-bold">جاهز للمتابعة؟</strong> بمجرد الاطمئنان لسعات القاعات وشواغرها، انتقل لضبط أنصبة واستثناءات المراقبين.
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigateNext?.('proctors')}
+                className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-black px-5 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs"
+              >
+                <span>الخطوة التالية: كادر المراقبين والأنصبة ({totalRoomSlots} شاغر)</span>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
             </div>
           )}
 

@@ -173,6 +173,29 @@ export default function App() {
     );
   }
 
+  // Workflow stats for the active project
+  const workflowStats = useMemo(() => {
+    if (!activeProject) return null;
+    const days = activeProject.scheduleDays || [];
+    const hasSchedule = days.length > 0;
+    const totalSlots = activeProject.totalRoomSlots || 0;
+    
+    const activeProctors = (activeProject.proctors || []).filter(p => p.isActive);
+    const totalQuotas = activeProctors.reduce((sum, p) => sum + (Number(p.quota) || 0), 0);
+    const isQuotaMatched = hasSchedule && totalSlots > 0 && totalQuotas === totalSlots;
+    const isDistributed = Boolean(activeProject.distributionResult && activeProject.distributionResult.isSuccess);
+
+    return {
+      hasSchedule,
+      daysCount: days.length,
+      totalSlots,
+      totalQuotas,
+      activeProctorsCount: activeProctors.length,
+      isQuotaMatched,
+      isDistributed
+    };
+  }, [activeProject]);
+
   // When inside an open project:
   return (
     <div className="min-h-screen flex flex-col bg-[#f8faf9] text-slate-800">
@@ -187,27 +210,13 @@ export default function App() {
         semesterCode={activeProject.semesterCode}
         examType={activeProject.examType}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        workflowStats={workflowStats}
       />
 
       {/* Main Project Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6">
         
-        {/* Tab 1: Proctors Management for this project */}
-        {activeTab === 'proctors' && (
-          <ProctorsTab
-            proctors={activeProject.proctors || []}
-            setProctors={(newProctors) => {
-              updateActiveProject(prev => ({
-                ...prev,
-                proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
-              }));
-            }}
-            scheduleDays={activeProject.scheduleDays || []}
-            totalRoomSlots={activeProject.totalRoomSlots || 0}
-          />
-        )}
-
-        {/* Tab 2: Exam Rooms Schedule for this project (With Audit Report & Reset) */}
+        {/* Step 1: Exam Rooms Schedule & Capacities */}
         {activeTab === 'schedule' && (
           <ScheduleTab
             scheduleDays={activeProject.scheduleDays || []}
@@ -228,10 +237,27 @@ export default function App() {
             }}
             semesterCode={activeProject.semesterCode}
             examType={activeProject.examType}
+            onNavigateNext={setActiveTab}
           />
         )}
 
-        {/* Tab 3: Distribution Engine for this project */}
+        {/* Step 2: Proctors Management & Quotas */}
+        {activeTab === 'proctors' && (
+          <ProctorsTab
+            proctors={activeProject.proctors || []}
+            setProctors={(newProctors) => {
+              updateActiveProject(prev => ({
+                ...prev,
+                proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
+              }));
+            }}
+            scheduleDays={activeProject.scheduleDays || []}
+            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            onNavigateNext={setActiveTab}
+          />
+        )}
+
+        {/* Step 3: Distribution Engine */}
         {activeTab === 'distribution' && (
           <DistributionTab
             proctors={activeProject.proctors || []}
@@ -251,7 +277,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 4: Results & Print-ready Views for this project */}
+        {/* Step 4: Results & Print-ready Views */}
         {activeTab === 'results' && (
           <ResultsTab
             scheduleDays={activeProject.scheduleDays || []}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Users, UserCheck, UserX, Plus, Search, Trash2, Calendar, 
-  RotateCcw, CheckSquare, XSquare, AlertTriangle, CheckCircle, Info
+  RotateCcw, CheckSquare, XSquare, AlertTriangle, CheckCircle, Info, ArrowLeft
 } from 'lucide-react';
 import ExceptionsModal from './ExceptionsModal';
 
@@ -9,7 +9,8 @@ export default function ProctorsTab({
   proctors,
   setProctors,
   scheduleDays,
-  totalRoomSlots
+  totalRoomSlots,
+  onNavigateNext
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'frozen'
@@ -235,7 +236,7 @@ export default function ProctorsTab({
             <button
               type="button"
               onClick={() => setShowAddForm(prev => !prev)}
-              className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+              className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>إضافة مراقب جديد</span>
@@ -244,7 +245,7 @@ export default function ProctorsTab({
             <button
               type="button"
               onClick={handleActivateAll}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               title="تفعيل جميع المراقبين للامتحان الحالي"
             >
               <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
@@ -254,7 +255,7 @@ export default function ProctorsTab({
             <button
               type="button"
               onClick={handleFreezeAll}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               title="تجميد جميع المراقبين"
             >
               <XSquare className="w-3.5 h-3.5 text-slate-500" />
@@ -264,7 +265,7 @@ export default function ProctorsTab({
             <button
               type="button"
               onClick={handleResetQuotas}
-              className="bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-slate-200"
+              className="bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-slate-200 cursor-pointer"
               title="تصفير أعباء جميع المراقبين لبدء دورة جديدة"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -295,14 +296,14 @@ export default function ProctorsTab({
             />
             <button
               type="submit"
-              className="bg-qou-primary text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-qou-dark transition"
+              className="bg-qou-primary text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-qou-dark transition cursor-pointer"
             >
               حفظ وإضافة
             </button>
             <button
               type="button"
               onClick={() => setShowAddForm(false)}
-              className="text-xs text-slate-500 hover:text-slate-700 px-2 py-2"
+              className="text-xs text-slate-500 hover:text-slate-700 px-2 py-2 cursor-pointer"
             >
               إلغاء
             </button>
@@ -359,7 +360,7 @@ export default function ProctorsTab({
                         <button
                           type="button"
                           onClick={() => handleToggleActive(proctor.id)}
-                          className={`text-xs px-3 py-1 rounded-full font-bold transition flex items-center justify-center gap-1.5 mx-auto ${
+                          className={`text-xs px-3 py-1 rounded-full font-bold transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer ${
                             proctor.isActive
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200'
                               : 'bg-slate-200 text-slate-600 border border-slate-300 hover:bg-slate-300'
@@ -392,7 +393,7 @@ export default function ProctorsTab({
                           type="button"
                           disabled={!proctor.isActive}
                           onClick={() => setEditingExceptionsProctor(proctor)}
-                          className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center justify-center gap-1.5 mx-auto border ${
+                          className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center justify-center gap-1.5 mx-auto border cursor-pointer ${
                             hasExceptions
                               ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
                               : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 disabled:opacity-40'
@@ -412,7 +413,7 @@ export default function ProctorsTab({
                         <button
                           type="button"
                           onClick={() => handleDeleteProctor(proctor.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                           title="حذف المراقب من الكادر نهائياً"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -424,6 +425,45 @@ export default function ProctorsTab({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Next Step Action Card at the bottom of Proctors */}
+        <div className="p-5 bg-gradient-to-l from-slate-50 to-emerald-50/40 border border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-4 mt-6">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                diffSlots === 0 && totalRoomSlots > 0 
+                  ? 'bg-emerald-600 text-white' 
+                  : 'bg-slate-200 text-slate-700'
+              }`}>
+                الخطوة 2: كادر المراقبين
+              </span>
+              <h4 className="text-sm font-black text-slate-900">
+                {diffSlots === 0 && totalRoomSlots > 0 ? (
+                  <span className="text-emerald-700 flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 inline" />
+                    تمت مطابقة الأنصبة مع الشواغر بنجاح 100% ({totalQuotasAssigned} من {totalRoomSlots})
+                  </span>
+                ) : (
+                  <span>
+                    إجمالي الأنصبة الحالية: <strong>{totalQuotasAssigned}</strong> من أصل <strong>{totalRoomSlots}</strong> شاغر
+                  </span>
+                )}
+              </h4>
+            </div>
+            <p className="text-xs text-slate-500">
+              بعد اكتمال إدخال الأنصبة والاستثناءات، انتقل مباشرة للخطوة 3 لفحص الجاهزية وإطلاق التوزيع الآلي.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigateNext?.('distribution')}
+            className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-black px-6 py-3.5 rounded-2xl shadow-md shadow-qou-primary/20 transition flex items-center gap-2 cursor-pointer"
+          >
+            <span>الانتقال للخطوة 3: محرك التوزيع الآلي</span>
+            <ArrowLeft className="w-4 h-4" />
+          </button>
         </div>
 
       </div>
