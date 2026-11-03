@@ -107,6 +107,26 @@ export default function QuickSwapModal({
     return map;
   }, [currentSession]);
 
+  // Proctors already assigned in any room on the current day
+  const proctorSessionsToday = useMemo(() => {
+    const map = {}; // proctorName -> Set of sessionNumbers on currentDay
+    if (!currentDay) return map;
+    (currentDay.sessions || []).forEach(sess => {
+      const sessNum = Number(sess.sessionNumber) || 1;
+      (sess.rooms || []).forEach(r => {
+        const list = Array.isArray(r.assignedProctors) 
+          ? r.assignedProctors 
+          : (r.assignedProctor ? [r.assignedProctor] : []);
+        list.filter(Boolean).forEach(name => {
+          const trimmed = name.trim();
+          if (!map[trimmed]) map[trimmed] = new Set();
+          map[trimmed].add(sessNum);
+        });
+      });
+    });
+    return map;
+  }, [currentDay]);
+
   // 4. Enrich proctor roster with real-time conflict & exception data
   const enrichedProctors = useMemo(() => {
     return (proctors || []).map(p => {
@@ -114,33 +134,69 @@ export default function QuickSwapModal({
       const quota = Number(p.quota) || 0;
       const isCurrent = p.name === slotData.currentProctor;
       const sessionConflict = proctorsInSessionMap[p.name] || null;
+      const isAcademic = p.type !== 'administrative';
       
       const dayWideKey = `${slotData.date}_all`;
       const sessionKey = `${slotData.date}_s${slotData.sessionNumber}`;
-      const hasException = (p.exceptions || []).includes(dayWideKey) || (p.exceptions || []).includes(sessionKey);
+      const rawExceptions = p.exceptions || [];
+      const hasException = rawExceptions.includes(dayWideKey) || 
+                           rawExceptions.includes(sessionKey) ||
+                           rawExceptions.some(ex => ex && ex.date === slotData.date && (!ex.sessionNumber || Number(ex.sessionNumber) === slotData.sessionNumber));
 
-      let status = 'available'; // 'available' | 'in_session' | 'exception' | 'quota_reached' | 'inactive'
+      const todaySessions = proctorSessionsToday[p.name] || new Set();
+      const todaySessionCount = todaySessions.size;
+
+      // Check daily limit overload for admin (> 2 sessions)
+      const wouldOverloadAdmin = !isAcademic && todaySessionCount >= 2 && !todaySessions.has(slotData.sessionNumber);
+
+      // Check excludeSession3
+      const violatesExclude3 = p.excludeSession3 && slotData.sessionNumber === 3;
+
+      // Check academic gap (Sessions 1 and 3 without 2)
+      let wouldCreateGap = false;
+      if (isAcademic) {
+        const futureSessions = new Set(todaySessions);
+        futureSessions.add(slotData.sessionNumber);
+        if (futureSessions.has(1) && futureSessions.has(3) && !futureSessions.has(2)) {
+          wouldCreateGap = true;
+        }
+      }
+
+      // Check quota full
+      const isQuotaFull = quota > 0 && assignedCount >= quota;
+
+      let status = 'available'; // 'available' | 'in_session' | 'exception' | 'quota_reached' | 'inactive' | 'exclude3' | 'admin_overload'
       if (!p.isActive) {
         status = 'inactive';
       } else if (sessionConflict) {
         status = 'in_session';
       } else if (hasException) {
         status = 'exception';
-      } else if (quota > 0 && assignedCount >= quota) {
+      } else if (violatesExclude3) {
+        status = 'exclude3';
+      } else if (wouldOverloadAdmin) {
+        status = 'admin_overload';
+      } else if (isQuotaFull) {
         status = 'quota_reached';
       }
 
       return {
         ...p,
+        isAcademic,
         assignedCount,
         quota,
         isCurrent,
         sessionConflict,
         hasException,
+        violatesExclude3,
+        wouldOverloadAdmin,
+        wouldCreateGap,
+        isQuotaFull,
+        todaySessionCount,
         status
       };
     });
-  }, [proctors, proctorTotalCounts, proctorsInSessionMap, slotData]);
+  }, [proctors, proctorTotalCounts, proctorsInSessionMap, proctorSessionsToday, slotData]);
 
   // Filtered proctor roster for selection (Sorted: Academics first, then Administrative, alphabetical in Arabic)
   const filteredProctorRoster = useMemo(() => {
@@ -149,10 +205,15 @@ export default function QuickSwapModal({
         return false;
       }
       if (rosterFilter === 'available') {
-        return p.isActive && !p.sessionConflict && !p.hasException;
+        return p.isActive && 
+               !p.sessionConflict && 
+               !p.hasException && 
+               !p.violatesExclude3 && 
+               !p.wouldOverloadAdmin && 
+               !p.isQuotaFull;
       }
       if (rosterFilter === 'exceptions') {
-        return p.hasException;
+        return p.hasException || p.violatesExclude3;
       }
       return true;
     });
@@ -176,7 +237,7 @@ export default function QuickSwapModal({
     // If already current proctor, do nothing
     if (proctor.isCurrent) return;
 
-    // Check if in another room in this session
+    // 1. Check if in another room in this session
     if (proctor.sessionConflict) {
       setConfirmWarning({
         type: 'conflict',
@@ -190,13 +251,97 @@ export default function QuickSwapModal({
       return;
     }
 
-    // Check if has exception
+    // 2. Check if has exception
     if (proctor.hasException) {
       setConfirmWarning({
         type: 'exception',
         proctorName: proctor.name,
-        message: `المراقب (${proctor.name}) لديه استثناء مسجل في هذا اليوم (${slotData.dayName} ${slotData.date}). هل تود تأكيد تعيينه استثنائياً؟`,
+        message: `المراقب (${proctor.name}) لديه طلب اعتذار / استثناء مسجل في هذا اليوم (${slotData.dayName} ${slotData.date}). هل تود تأكيد تعيينه استثنائياً؟`,
         actionLabel: 'تأكيد التعيين بالرغم من الاستثناء',
+        proceedFn: () => {
+          onApplyReassign(
+            slotData.dayIndex,
+            slotData.sessionNumber,
+            slotData.roomIndex,
+            slotData.slotIndex,
+            proctor.name
+          );
+          onClose();
+        }
+      });
+      return;
+    }
+
+    // 3. Check if violates excludeSession3
+    if (proctor.violatesExclude3) {
+      setConfirmWarning({
+        type: 'exclude3',
+        proctorName: proctor.name,
+        message: `المراقب (${proctor.name}) لديه استبعاد معتمد للجلسة الثالثة. هل تود تأكيد تعيينه في الجلسة الثالثة استثنائياً؟`,
+        actionLabel: 'تأكيد التعيين في الجلسة الثالثة',
+        proceedFn: () => {
+          onApplyReassign(
+            slotData.dayIndex,
+            slotData.sessionNumber,
+            slotData.roomIndex,
+            slotData.slotIndex,
+            proctor.name
+          );
+          onClose();
+        }
+      });
+      return;
+    }
+
+    // 4. Check if would overload admin (> 2 sessions)
+    if (proctor.wouldOverloadAdmin) {
+      setConfirmWarning({
+        type: 'admin_overload',
+        proctorName: proctor.name,
+        message: `المراقب الإداري (${proctor.name}) لديه بالفعل جلستان في هذا اليوم (${slotData.dayName})، وتعيينه سيتجاوز السقف الأقصى (جلستان يومياً). هل تود المتابعة؟`,
+        actionLabel: 'تأكيد التعيين وتجاوز السقف اليومي',
+        proceedFn: () => {
+          onApplyReassign(
+            slotData.dayIndex,
+            slotData.sessionNumber,
+            slotData.roomIndex,
+            slotData.slotIndex,
+            proctor.name
+          );
+          onClose();
+        }
+      });
+      return;
+    }
+
+    // 5. Check if would create academic gap (1 & 3 without 2)
+    if (proctor.wouldCreateGap) {
+      setConfirmWarning({
+        type: 'gap',
+        proctorName: proctor.name,
+        message: `تعيين الزميل الأكاديمي (${proctor.name}) في هذه الجلسة سيصنع فجوة انتظار في يومه (جلسة 1 وجلسة 3 دون جلسة 2). هل تود المتابعة؟`,
+        actionLabel: 'تأكيد التعيين مع قبول الفجوة',
+        proceedFn: () => {
+          onApplyReassign(
+            slotData.dayIndex,
+            slotData.sessionNumber,
+            slotData.roomIndex,
+            slotData.slotIndex,
+            proctor.name
+          );
+          onClose();
+        }
+      });
+      return;
+    }
+
+    // 6. Check if quota is full
+    if (proctor.isQuotaFull) {
+      setConfirmWarning({
+        type: 'quota',
+        proctorName: proctor.name,
+        message: `المراقب (${proctor.name}) استوفى نصابه/سقفه بالكامل بواقع (${proctor.assignedCount} من أصل ${proctor.quota} جلسة). هل تود تكليفه بزيادة فوق النصاب؟`,
+        actionLabel: 'تأكيد التكليف بزيادة فوق النصاب',
         proceedFn: () => {
           onApplyReassign(
             slotData.dayIndex,
@@ -522,6 +667,30 @@ export default function QuickSwapModal({
                           {p.status === 'exception' && (
                             <span className="text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-bold border border-amber-200">
                               ⚠️ استثناء اليوم
+                            </span>
+                          )}
+
+                          {p.status === 'exclude3' && (
+                            <span className="text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded font-bold border border-purple-200">
+                              🚫 الجلسة 3 مستبعدة
+                            </span>
+                          )}
+
+                          {p.status === 'admin_overload' && (
+                            <span className="text-orange-700 bg-orange-50 px-1.5 py-0.2 rounded font-bold border border-orange-200">
+                              ⚠️ سقف اليوم (جلستان)
+                            </span>
+                          )}
+
+                          {p.status === 'quota_reached' && (
+                            <span className="text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded font-bold border border-slate-200">
+                              مكتمل النصاب ({p.assignedCount})
+                            </span>
+                          )}
+
+                          {p.wouldCreateGap && (
+                            <span className="text-pink-700 bg-pink-50 px-1.5 py-0.2 rounded font-bold border border-pink-200">
+                              ⚠️ سيصنع فجوة (1 و 3)
                             </span>
                           )}
 

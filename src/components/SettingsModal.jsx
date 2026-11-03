@@ -21,15 +21,14 @@ export default function SettingsModal({
   accounts,
   setAccounts
 }) {
-  if (!isOpen) return null;
-
+  // Hooks must always be declared unconditionally at top level
   const [tempSemester, setTempSemester] = useState(semesterCode);
   const [confirmConfig, setConfirmConfig] = useState(null);
   const [tempExamType, setTempExamType] = useState(examType);
-
-  // Accounts edit state
   const [localAccounts, setLocalAccounts] = useState(accounts || DEFAULT_ACCOUNTS);
   const [showPasswords, setShowPasswords] = useState(false);
+
+  if (!isOpen) return null;
 
   const examTypeOptions = [
     'نصفي',
@@ -89,7 +88,8 @@ export default function SettingsModal({
         if (data.scheduleDays && Array.isArray(data.scheduleDays)) {
           setScheduleDays(data.scheduleDays);
           const totalSlots = data.scheduleDays.reduce((acc, d) => 
-            acc + (d.sessions || []).reduce((sAcc, s) => sAcc + (s.rooms || []).length, 0), 0);
+            acc + (d.sessions || []).reduce((sAcc, s) => 
+              sAcc + (s.rooms || []).reduce((rAcc, r) => rAcc + Math.max(1, Number(r.capacity) || 1), 0), 0), 0);
           setTotalRoomSlots(totalSlots);
         }
         if (data.semesterCode) setSemesterCode(data.semesterCode);

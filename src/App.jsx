@@ -130,12 +130,20 @@ export default function App() {
     if (!activeProject) return null;
     const days = activeProject.scheduleDays || [];
     const hasSchedule = days.length > 0;
-    const totalSlots = activeProject.totalRoomSlots || 0;
+    
+    // Always compute totalSlots dynamically from room capacities to prevent drift
+    const computedSlots = days.reduce((acc, d) => 
+      acc + (d.sessions || []).reduce((sAcc, s) => 
+        sAcc + (s.rooms || []).reduce((rAcc, r) => rAcc + Math.max(1, Number(r.capacity) || 1), 0), 0), 0);
+    const totalSlots = computedSlots > 0 ? computedSlots : (activeProject.totalRoomSlots || 0);
     
     const activeProctors = (activeProject.proctors || []).filter(p => p.isActive);
     const totalQuotas = activeProctors.reduce((sum, p) => sum + (Number(p.quota) || 0), 0);
     const isQuotaMatched = hasSchedule && totalSlots > 0 && totalQuotas === totalSlots;
-    const isDistributed = Boolean(activeProject.distributionResult && activeProject.distributionResult.isSuccess);
+    const isDistributed = Boolean(
+      activeProject.distributionResult && 
+      (activeProject.distributionResult.success || activeProject.distributionResult.isSuccess)
+    );
 
     return {
       hasSchedule,
@@ -259,7 +267,7 @@ export default function App() {
                 isUserUploaded: true
               }));
             }}
-            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
             setTotalRoomSlots={(slots) => {
               updateActiveProject({ totalRoomSlots: slots });
             }}
@@ -284,7 +292,7 @@ export default function App() {
               }));
             }}
             scheduleDays={activeProject.scheduleDays || []}
-            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
             onNavigateNext={setActiveTab}
           />
         )}
@@ -300,7 +308,7 @@ export default function App() {
                 scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
               }));
             }}
-            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
             distributionResult={activeProject.distributionResult}
             setDistributionResult={(result) => {
               updateActiveProject({ distributionResult: result });
@@ -326,7 +334,7 @@ export default function App() {
                 proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
               }));
             }}
-            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
             onNavigateNext={setActiveTab}
           />
         )}

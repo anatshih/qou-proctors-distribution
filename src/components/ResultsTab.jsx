@@ -14,6 +14,7 @@ import {
   exportExecutiveSummaryExcel
 } from '../utils/excelHandler';
 import { sortProctors } from '../utils/proctorsHelper.js';
+import { runScheduleAudit } from '../utils/auditEngine.js';
 import QuickSwapModal from './QuickSwapModal';
 import ConfirmModal from './ConfirmModal';
 
@@ -236,6 +237,11 @@ export default function ResultsTab({
     };
   }, [allRooms, liveProctorStats, scheduleDays, matrixSessions]);
 
+  // Central Mathematical Audit Result (Derived dynamically 100%)
+  const liveAudit = useMemo(() => {
+    return runScheduleAudit(scheduleDays, proctors);
+  }, [scheduleDays, proctors]);
+
   // Daily Statistics Breakdown
   const dailyStats = useMemo(() => {
     return (scheduleDays || []).map(day => {
@@ -402,17 +408,36 @@ export default function ResultsTab({
 
     const points = [];
 
-    // 1. Quota & Contract Fulfilled
+    // 1. Quota & Contract Fulfilled (Strictly dynamic check)
     if (isAcademic) {
-      points.push({
-        title: 'استيفاء النصاب التعاقدي بدقة 100%:',
-        text: `تم استيفاء النصاب التدريسي المقرر للزميل بالكامل (${assignedCount} جلسة من أصل ${quota} جلسة مطلوبة) بتفاضل صفر (لا يوجد أي عجز أو زيادة).`
-      });
+      if (assignedCount === quota) {
+        points.push({
+          title: 'استيفاء النصاب التعاقدي بدقة 100%:',
+          text: `تم استيفاء النصاب التدريسي المقرر للزميل بالكامل (${assignedCount} جلسة من أصل ${quota} جلسة مطلوبة) بتفاضل صفر (لا يوجد أي عجز أو زيادة).`
+        });
+      } else if (assignedCount < quota) {
+        points.push({
+          title: `عجز في استيفاء النصاب التعاقدي (${quota - assignedCount} جلسة):`,
+          text: `تنبيه تدقيق: جدول الزميل يحتوي على عجز بواقع (${quota - assignedCount}) جلسة (${assignedCount} منفذة من أصل ${quota} مطلوبة).`
+        });
+      } else {
+        points.push({
+          title: `زيادة فوق النصاب التعاقدي (+${assignedCount - quota} جلسة):`,
+          text: `تنبيه تدقيق: تم تكليف الزميل بزيادة قدرها (${assignedCount - quota}) جلسة فوق النصاب المقرر (${assignedCount} منفذة من أصل ${quota} مطلوبة).`
+        });
+      }
     } else {
-      points.push({
-        title: 'استيفاء السقف الإداري العادل:',
-        text: `تم توزيع تكليفات الزميل بعدالة تامة ضمن كادر الإداريين بواقع (${assignedCount} جلسة من سقف ${quota} جلسة)، مع الالتزام بحد أقصى جلستين في اليوم الواحد لحماية تفرغه لمهامه الوظيفية.`
-      });
+      if (assignedCount <= quota) {
+        points.push({
+          title: 'استيفاء السقف الإداري العادل:',
+          text: `تم توزيع تكليفات الزميل بعدالة تامة ضمن كادر الإداريين بواقع (${assignedCount} جلسة من سقف ${quota} جلسة)، مع الالتزام بحد أقصى جلستين في اليوم الواحد لحماية تفرغه لمهامه الوظيفية.`
+        });
+      } else {
+        points.push({
+          title: `تجاوز السقف الإداري المحدد (+${assignedCount - quota} جلسة):`,
+          text: `تنبيه تدقيق: تم تكليف الزميل بزيادة عن السقف الإداري المحدد بواقع (${assignedCount} منفذة من سقف ${quota}).`
+        });
+      }
     }
 
     // 2. Attendance Days & Sessions Clustering
@@ -425,39 +450,89 @@ export default function ResultsTab({
       } else {
         if (twoSessionDays.length > 0) {
           points.push({
-            title: 'تجميع المراقبات في ثنائيات مريحة (1+2 أو 2+3):',
-            text: `تم تجميع جلسات الزميل في أيام ثنائية متصلة لتفادي إلزامه بالحضور إلى الجامعة من أجل جلسة واحدة منفردة، ولضمان استثمار يوم حضوره بأفضل صورة ممكنة.`
+            title: `تجميع المراقبات في ثنائيات مريحة (${twoSessionDays.length} يوم):`,
+            text: `تم تجميع جلسات الزميل في أيام ثنائية متصلة (1+2 أو 2+3) لتفادي إلزامه بالحضور إلى الجامعة من أجل جلسة واحدة منفردة، ولضمان استثمار يوم حضوره بأفضل صورة ممكنة.`
           });
         }
         if (threeSessionDays.length > 0) {
           points.push({
-            title: 'اليوم الثلاثي المبرر لتوفير أيام الحضور:',
-            text: `تم تكليف الزميل بثلاث جلسات متتالية (1+2+3) في يوم واحد فقط بهدف تقليص إجمالي أيام مجيئه إلى الجامعة إلى (${daysWorkedCount} أيام فقط بدلاً من ${daysWorkedCount + 1} أيام)، وتوفير يوم دوام كامل عليه.`
+            title: `اليوم الثلاثي المبرر لتوفير أيام الحضور (${threeSessionDays.length} يوم):`,
+            text: `تم تكليف الزميل بثلاث جلسات متتالية (1+2+3) في يوم واحد فقط بهدف تقليص إجمالي أيام مجيئه إلى الجامعة إلى (${daysWorkedCount} أيام فقط)، وتوفير يوم دوام كامل عليه.`
+          });
+        }
+        if (singleSessionDays.length > 0) {
+          points.push({
+            title: `جلسات دوام منفردة (${singleSessionDays.length} يوم):`,
+            text: `يتضمن جدول الزميل جلسة واحدة منفردة في الأيام: (${singleSessionDays.join('، ')}).`
           });
         }
       }
     }
 
-    // 3. No gap guarantee
-    points.push({
-      title: 'خلو الجدول من فترات الفراغ والانتظار:',
-      text: `تم التحقق آلياً من عدم وجود أي فترات فراغ متباعدة في جدول الزميل (لا يوجد تكليف في الجلسة الأولى والثالثة مع فراغ الجلسة الثانية في أي يوم).`
+    // 3. Dynamic Gap verification (Session 1 & 3 without 2)
+    const gapDays = [];
+    datesWorked.forEach(dStr => {
+      const sessList = (assignmentsByDate[dStr] || []).map(a => Number(a.sessionNumber));
+      if (sessList.includes(1) && sessList.includes(3) && !sessList.includes(2)) {
+        gapDays.push(dStr);
+      }
     });
 
-    // 4. Apologies & Exceptions
-    if (proctor.excludeSession3) {
+    if (gapDays.length === 0) {
       points.push({
-        title: 'احترام طلب استبعاد الجلسة الثالثة:',
-        text: `تم تفعيل طلب الزميل باستبعاد الجلسة الثالثة بالكامل، ولم يتم تكليفه في أي جلسة ثالثة على الإطلاق طوال فترة الامتحانات.`
+        title: 'خلو الجدول من فترات الفراغ والانتظار:',
+        text: `تم التحقق رياضياً من عدم وجود أي فترات فراغ متباعدة في جدول الزميل (لا يوجد تكليف في الجلسة الأولى والثالثة مع فراغ الجلسة الثانية في أي يوم).`
+      });
+    } else {
+      points.push({
+        title: 'تنبيه: وجود فترات فراغ وانتظار (فجوة جلسات):',
+        text: `يحتوي جدول الزميل على فترات انتظار متباعدة (جلسة 1 وجلسة 3 دون جلسة 2) في الأيام التالية: (${gapDays.join('، ')}).`
       });
     }
 
+    // 4. Exclude Session 3 check
+    if (proctor.excludeSession3) {
+      const s3ViolatedDays = assignments.filter(a => Number(a.sessionNumber) === 3).map(a => `${a.dayName} (${a.date})`);
+      if (s3ViolatedDays.length === 0) {
+        points.push({
+          title: 'احترام طلب استبعاد الجلسة الثالثة:',
+          text: `تم تفعيل طلب الزميل باستبعاد الجلسة الثالثة بالكامل، ولم يتم تكليفه في أي جلسة ثالثة على الإطلاق طوال فترة الامتحانات.`
+        });
+      } else {
+        points.push({
+          title: 'تنبيه: مخالفة استبعاد الجلسة الثالثة:',
+          text: `تم تكليف الزميل في الجلسة الثالثة في الأيام: (${s3ViolatedDays.join('، ')}) بالرغم من وجود استثناء مسجل.`
+        });
+      }
+    }
+
+    // 5. Apologies & Exceptions verification
     const exList = proctor.exceptions || [];
     if (exList.length > 0) {
-      points.push({
-        title: 'احترام الاعتذارات والاستثناءات المدخلة مسبقاً بنسبة 100%:',
-        text: `تم الالتزام بكافة طلبات الاعتذار والغياب المسجلة باسم الزميل مسبقاً (${exList.length} فترات)، ولم يتم إدراجه في أي جلسة منها نهائياً.`
+      const exSet = new Set();
+      exList.forEach(ex => {
+        if (typeof ex === 'string') exSet.add(ex);
+        else if (ex && ex.date) {
+          if (ex.sessionNumber) exSet.add(`${ex.date}_s${ex.sessionNumber}`);
+          else exSet.add(`${ex.date}_all`);
+        }
       });
+
+      const violatedDays = assignments
+        .filter(a => exSet.has(`${a.date}_all`) || exSet.has(`${a.date}_s${a.sessionNumber}`))
+        .map(a => `${a.date} (جلسة ${a.sessionNumber})`);
+
+      if (violatedDays.length === 0) {
+        points.push({
+          title: 'احترام الاعتذارات والاستثناءات المدخلة مسبقاً بنسبة 100%:',
+          text: `تم الالتزام بكافة طلبات الاعتذار والغياب المسجلة باسم الزميل مسبقاً (${exList.length} فترات/أيام)، ولم يتم إدراجه في أي جلسة منها نهائياً.`
+        });
+      } else {
+        points.push({
+          title: 'تنبيه: وجود تكليفات في فترات اعتذار مسجلة مسبقاً:',
+          text: `تم تكليف الزميل في فترات اعتذار سابقة في: (${violatedDays.join('، ')}).`
+        });
+      }
     } else {
       points.push({
         title: 'الاعتذارات والاستثناءات المسبقة:',
@@ -1110,33 +1185,35 @@ export default function ResultsTab({
           </div>
         </div>
 
-        {/* 4 Major KPI Badges */}
+        {/* 4 Major KPI Badges (100% Dynamically Verified) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/40 p-3 rounded-xl border border-indigo-200">
             <span className="text-[11px] font-bold text-indigo-700 block">نسبة التغطية الميدانية</span>
             <strong className="text-indigo-950 text-base font-black">
-              100% ({executiveStats.filledSlots} / {executiveStats.totalSlots} قاعة)
+              {liveAudit.fulfillmentRate}% ({liveAudit.totalAssignedSlots} / {liveAudit.totalCapacityRequired} مقعد)
             </strong>
           </div>
 
           <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 p-3 rounded-xl border border-emerald-200">
             <span className="text-[11px] font-bold text-emerald-700 block">استيفاء عقود الأكاديميين</span>
             <strong className="text-emerald-950 text-base font-black">
-              {executiveStats.academicsCompletedCount} من {executiveStats.academicsCount} أستاذ (100%)
+              {liveAudit.academicFullComplianceCount} من {liveAudit.academicCount} أستاذ ({liveAudit.academicComplianceRate}%)
             </strong>
           </div>
 
           <div className="bg-gradient-to-br from-amber-50 to-amber-100/40 p-3 rounded-xl border border-amber-200">
             <span className="text-[11px] font-bold text-amber-700 block">سقف الكادر الإداري</span>
             <strong className="text-amber-950 text-base font-black">
-              {executiveStats.adminsCount} موظف (سقف عادل ≤ جلستين)
+              {liveAudit.adminCount} موظف ({liveAudit.adminComplianceRate}% ضمن السقف)
             </strong>
           </div>
 
           <div className="bg-gradient-to-br from-purple-50 to-purple-100/40 p-3 rounded-xl border border-purple-200">
-            <span className="text-[11px] font-bold text-purple-700 block">مؤشر الراحة وتصفير الفردي</span>
+            <span className="text-[11px] font-bold text-purple-700 block">مؤشر أيام الجلسات الفردية</span>
             <strong className="text-purple-950 text-base font-black">
-              0 أيام فردية للأكاديميين
+              {liveAudit.academicSingleSessionDaysCount === 0 
+                ? 'تم تصفير الأيام الفردية (0)' 
+                : `${liveAudit.academicSingleSessionDaysCount} جلسات فردية للأكاديميين`}
             </strong>
           </div>
         </div>
@@ -2000,7 +2077,7 @@ export default function ResultsTab({
 
               <button
                 type="button"
-                onClick={() => exportExecutiveSummaryExcel(executiveStats, dailyStats, semesterCode, examType)}
+                onClick={() => exportExecutiveSummaryExcel(liveAudit, dailyStats, semesterCode, examType)}
                 className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
@@ -2037,35 +2114,43 @@ export default function ResultsTab({
 
                 <div className="text-left text-[10px] text-slate-500 space-y-0.5">
                   <div>تاريخ التقرير: <strong>{new Date().toLocaleDateString('ar-EG')}</strong></div>
-                  <div>نسبة النجاح: <strong className="text-emerald-700">100% مكتمل</strong></div>
+                  <div>نسبة الإنجاز: <strong className="text-emerald-700">{liveAudit.fulfillmentRate}% مكتمل</strong></div>
                   <div>الفرع: <strong>الخليل</strong></div>
                 </div>
               </div>
             </div>
 
-            {/* Big Metrics Grid */}
+            {/* Big Metrics Grid (Dynamically Computed) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
                 <span className="text-[11px] font-bold text-slate-600 block">إجمالي الشواغر المطلوبة</span>
-                <strong className="text-xl font-black text-slate-900">{executiveStats.totalSlots} قاعة</strong>
-                <span className="text-[10px] text-emerald-700 font-bold block mt-1">تغطية 100% مسندة</span>
+                <strong className="text-xl font-black text-slate-900">{liveAudit.totalCapacityRequired} مقعد</strong>
+                <span className="text-[10px] text-emerald-700 font-bold block mt-1">
+                  تغطية {liveAudit.fulfillmentRate}% ({liveAudit.totalAssignedSlots} مسند)
+                </span>
               </div>
 
               <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl">
                 <span className="text-[11px] font-bold text-emerald-700 block">عقود الكادر الأكاديمي</span>
-                <strong className="text-xl font-black text-emerald-950">27 / 27 أستاذ</strong>
-                <span className="text-[10px] text-emerald-800 font-bold block mt-1">استيفاء 100% بتفاضل صفر</span>
+                <strong className="text-xl font-black text-emerald-950">
+                  {liveAudit.academicFullComplianceCount} / {liveAudit.academicCount} أستاذ
+                </strong>
+                <span className="text-[10px] text-emerald-800 font-bold block mt-1">
+                  استيفاء {liveAudit.academicComplianceRate}% {liveAudit.academicFullComplianceCount === liveAudit.academicCount ? 'بتفاضل صفر' : 'يوجد تفاوت'}
+                </span>
               </div>
 
               <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl">
                 <span className="text-[11px] font-bold text-amber-700 block">سقف الكادر الإداري</span>
-                <strong className="text-xl font-black text-amber-950">16 موظف</strong>
-                <span className="text-[10px] text-amber-800 font-bold block mt-1">سقف عادل ≤ جلستين/يوم</span>
+                <strong className="text-xl font-black text-amber-950">{liveAudit.adminCount} موظف</strong>
+                <span className="text-[10px] text-amber-800 font-bold block mt-1">
+                  {liveAudit.adminComplianceRate}% ضمن السقف ≤ جلستين/يوم
+                </span>
               </div>
 
               <div className="bg-indigo-50 border border-indigo-200 p-3.5 rounded-xl">
                 <span className="text-[11px] font-bold text-indigo-700 block">إجمالي أيام وجلسات الامتحان</span>
-                <strong className="text-xl font-black text-indigo-950">12 يوماً / 36 جلسة</strong>
+                <strong className="text-xl font-black text-indigo-950">{executiveStats.totalDays} يوماً / {executiveStats.totalSessions} جلسة</strong>
                 <span className="text-[10px] text-indigo-800 font-bold block mt-1">جدول تشغيلي متكامل</span>
               </div>
             </div>
@@ -2074,7 +2159,7 @@ export default function ResultsTab({
             <div className="space-y-2">
               <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-qou-primary" />
-                <span>جدول توزيع قاعات ومراقبي أيام الامتحان الـ (12 يوماً):</span>
+                <span>جدول توزيع قاعات ومراقبي أيام الامتحان ({dailyStats.length} يوماً):</span>
               </h4>
 
               <div className="overflow-x-auto border border-slate-200 rounded-xl">
