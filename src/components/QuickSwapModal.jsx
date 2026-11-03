@@ -4,6 +4,7 @@ import {
   Users, Trash2, CheckCircle, ShieldAlert, Sparkles, Building
 } from 'lucide-react';
 import { sortProctors } from '../utils/proctorsHelper.js';
+import ConfirmModal from './ConfirmModal';
 
 export default function QuickSwapModal({
   isOpen,
@@ -21,6 +22,7 @@ export default function QuickSwapModal({
   const [searchTerm, setSearchTerm] = useState('');
   const [rosterFilter, setRosterFilter] = useState('available'); // 'available' | 'all' | 'exceptions'
   const [confirmWarning, setConfirmWarning] = useState(null); // { type: 'exception' | 'conflict', proctorName, proceedFn }
+  const [confirmConfig, setConfirmConfig] = useState(null);
 
   // Extract session object
   const currentDay = scheduleDays[slotData.dayIndex];
@@ -221,13 +223,26 @@ export default function QuickSwapModal({
   };
 
   const handleClearSlot = () => {
-    onApplyClear(
-      slotData.dayIndex,
-      slotData.sessionNumber,
-      slotData.roomIndex,
-      slotData.slotIndex
-    );
-    onClose();
+    setConfirmConfig({
+      title: 'تأكيد تفريغ المقعد',
+      message: `هل أنت متأكد من رغبتك في تفريغ المقعد المسند للزميل (${slotData.currentProctor || ''})؟`,
+      variant: 'warning',
+      confirmText: 'نعم، تفريغ المقعد',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        `سيتم إزالة الزميل من قاعة (${slotData.roomName}) في الجلسة (${slotData.sessionNumber}) يوم (${slotData.dayName} ${slotData.date}).`,
+        'سيعود المقعد شاغراً وينقص عدد الجلسات المنفذة للزميل بمقدار (-1).'
+      ],
+      onConfirm: () => {
+        onApplyClear(
+          slotData.dayIndex,
+          slotData.sessionNumber,
+          slotData.roomIndex,
+          slotData.slotIndex
+        );
+        onClose();
+      }
+    });
   };
 
   return (
@@ -563,6 +578,13 @@ export default function QuickSwapModal({
             إغلاق النافذة
           </button>
         </div>
+
+        {/* Confirmation Modal */}
+        <ConfirmModal
+          isOpen={Boolean(confirmConfig)}
+          onClose={() => setConfirmConfig(null)}
+          {...confirmConfig}
+        />
 
       </div>
     </div>

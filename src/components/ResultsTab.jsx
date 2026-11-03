@@ -15,6 +15,7 @@ import {
 } from '../utils/excelHandler';
 import { sortProctors } from '../utils/proctorsHelper.js';
 import QuickSwapModal from './QuickSwapModal';
+import ConfirmModal from './ConfirmModal';
 
 export default function ResultsTab({
   scheduleDays = [],
@@ -48,6 +49,7 @@ export default function ResultsTab({
   // Quick Swap Modal state
   const [activeSwapSlot, setActiveSwapSlot] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [confirmConfig, setConfirmConfig] = useState(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -1858,7 +1860,21 @@ export default function ResultsTab({
 
                 <button
                   type="button"
-                  onClick={() => handlePrintAssistantDossier('all')}
+                  onClick={() => {
+                    setConfirmConfig({
+                      title: 'تأكيد تجهيز وطباعة الملف الشامل لكافة المراقبين (43 صفحة PDF)',
+                      message: 'أنت على وشك توليد وطباعة الكتيب التبريري الشامل لكافة الزملاء المراقبين دفعة واحدة.',
+                      consequences: [
+                        `سيقوم النظام بتوليد ${liveProctorStats.length} صفحة A4 مستقلة وموائمة بالكامل (صفحة واحدة لكل مراقب بتفاضل صفر وبدون أي فيضان).`,
+                        'ستفتح نافذة الطباعة لاختيار الحفظ كملف PDF على جهازك أو إرساله مباشرة إلى الطابعة المعتمدة.',
+                        'تم ترتيب الزملاء بدقة وفق البروتوكول الجامعي المعتمد: الأكاديميون أولاً ثم الإداريون أبجدياً.'
+                      ],
+                      confirmText: 'متابعة تجهيز وطباعة الملف (43 صفحة)',
+                      cancelText: 'تراجع',
+                      variant: 'primary',
+                      onConfirm: () => handlePrintAssistantDossier('all')
+                    });
+                  }}
                   className="bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-2 cursor-pointer"
                   title="طباعة الملف التبريري الشامل لكافة الزملاء (43 صفحة PDF - صفحة واحدة موائمة لكل زميل)"
                 >
@@ -2148,6 +2164,17 @@ export default function ResultsTab({
           onApplyReassign={handleApplyReassign}
           onApplySwap={handleApplySwap}
           onApplyClear={handleApplyClear}
+        />
+      )}
+
+      {/* =========================================================
+          CONFIRMATION MODAL
+         ========================================================= */}
+      {confirmConfig && (
+        <ConfirmModal
+          isOpen={Boolean(confirmConfig)}
+          onClose={() => setConfirmConfig(null)}
+          {...confirmConfig}
         />
       )}
 

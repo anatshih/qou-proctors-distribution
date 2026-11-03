@@ -3,6 +3,7 @@ import { X, Settings, Download, Upload, RotateCcw, Check, Users, KeyRound, Eye, 
 import { INITIAL_PROCTORS } from '../data/initialProctors';
 import { DEFAULT_SCHEDULE, DEFAULT_TOTAL_SLOTS } from '../data/defaultSchedule';
 import { DEFAULT_ACCOUNTS } from '../utils/auth';
+import ConfirmModal from './ConfirmModal';
 
 export default function SettingsModal({
   isOpen,
@@ -23,6 +24,7 @@ export default function SettingsModal({
   if (!isOpen) return null;
 
   const [tempSemester, setTempSemester] = useState(semesterCode);
+  const [confirmConfig, setConfirmConfig] = useState(null);
   const [tempExamType, setTempExamType] = useState(examType);
 
   // Accounts edit state
@@ -108,19 +110,31 @@ export default function SettingsModal({
 
   // Reset to Factory Default
   const handleFactoryReset = () => {
-    if (window.confirm('تحذير: هل أنت متأكد من إعادة ضبط النظام بالكامل إلى الحالة الافتراضية؟ سيتم استعادة الـ 43 مراقباً وجدول الفصل 1261 الافتراضي.')) {
-      setProctors(INITIAL_PROCTORS);
-      setScheduleDays(DEFAULT_SCHEDULE);
-      setTotalRoomSlots(DEFAULT_TOTAL_SLOTS);
-      setSemesterCode('1261');
-      setExamType('نصفي');
-      setAccounts(DEFAULT_ACCOUNTS);
-      setLocalAccounts(DEFAULT_ACCOUNTS);
-      setDistributionResult(null);
-      localStorage.clear();
-      alert('تمت إعادة ضبط النظام إلى الإعدادات الافتراضية بنجاح.');
-      onClose();
-    }
+    setConfirmConfig({
+      title: 'تحذير هام: استعادة ضبط المصنع الكامل للمنظومة',
+      message: 'أنت على وشك إعادة ضبط المنظومة بالكامل واستعادة البيانات الافتراضية الأصلية.',
+      variant: 'danger',
+      confirmText: 'نعم، استعادة ضبط المصنع',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        'سيتم استعادة كادر الـ 43 مراقباً الأصلي بكافة بياناتهم وأنصبتهم المعتمدة لفرع الخليل.',
+        'سيتم استعادة جدول الامتحانات الافتراضي المعتمد للفصل 1261 (12 يوماً، 402 شاغراً).',
+        'سيتم مسح أي تعديلات محلية أو حسابات مستحدثة وتصفير نتائج التوزيع.',
+        'سيتم تنظيف التخزين المحلي وإعادة فتح النظام بحالته الرسمية الأولى.'
+      ],
+      onConfirm: () => {
+        setProctors(INITIAL_PROCTORS);
+        setScheduleDays(DEFAULT_SCHEDULE);
+        setTotalRoomSlots(DEFAULT_TOTAL_SLOTS);
+        setSemesterCode('1261');
+        setExamType('نصفي');
+        setAccounts(DEFAULT_ACCOUNTS);
+        setLocalAccounts(DEFAULT_ACCOUNTS);
+        setDistributionResult(null);
+        localStorage.clear();
+        onClose();
+      }
+    });
   };
 
   return (
@@ -315,6 +329,14 @@ export default function SettingsModal({
         </div>
 
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmConfig)}
+        onClose={() => setConfirmConfig(null)}
+        {...confirmConfig}
+      />
+
     </div>
   );
 }

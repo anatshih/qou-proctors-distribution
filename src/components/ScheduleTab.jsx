@@ -5,6 +5,7 @@ import {
   SlidersHorizontal, Search, Sparkles, Layers, ArrowLeft
 } from 'lucide-react';
 import { parseUploadedSchedule } from '../utils/excelHandler';
+import ConfirmModal from './ConfirmModal';
 
 export default function ScheduleTab({
   scheduleDays,
@@ -30,6 +31,7 @@ export default function ScheduleTab({
   const [roomSearchTerm, setRoomSearchTerm] = useState('');
   const [roomFilterCategory, setRoomFilterCategory] = useState('all'); // 'all' | 'single' | 'multi'
   const [capacityToast, setCapacityToast] = useState('');
+  const [confirmConfig, setConfirmConfig] = useState(null);
 
   // Recalculate total slots considering multi-proctor capacities
   const calcTotalSlots = (days) => {
@@ -38,7 +40,7 @@ export default function ScheduleTab({
         sAcc + (s.rooms || []).reduce((rAcc, r) => rAcc + Math.max(1, Number(r.capacity) || 1), 0), 0), 0);
   };
 
-  const handleFileUpload = async (file) => {
+  const executeFileUpload = async (file) => {
     if (!file) return;
     setErrorMsg('');
     setSuccessMsg('');
@@ -52,11 +54,31 @@ export default function ScheduleTab({
       setUploadedFileName(result.fileName);
       setSuccessMsg(`تم بنجاح رفع وقراءة جدول القاعات: تم التعرف على ${result.days.length} يوماً و ${computedTotal} شاغر مراقبة.`);
       setSelectedDayIdx(0);
-      setViewMode('capacities'); // Automatically direct user to room capacity settings!
+      setViewMode('capacities');
     } catch (err) {
       setErrorMsg(err.message || 'حدث خطأ أثناء قراءة ملف الإكسل.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileUpload = (file) => {
+    if (!file) return;
+    if (scheduleDays && scheduleDays.length > 0) {
+      setConfirmConfig({
+        title: 'تأكيد استبدال جدول الامتحانات الحالي',
+        message: `أنت على وشك استيراد ملف (${file.name})، هل ترغب في استبدال الجدول القائم؟`,
+        variant: 'warning',
+        confirmText: 'نعم، استيراد واستبدال الجدول',
+        cancelText: 'إلغاء وتراجع',
+        consequences: [
+          `سيتم استبدال الجدول الحالي (${scheduleDays.length} يوماً، ${totalRoomSlots} شاغراً) بالبيانات المستوردة من الملف الجديد.`,
+          'سيتم مسح أي توزيع سابق للمراقبين على القاعات وإعادة تهيئة الشواغر للجدول الجديد.'
+        ],
+        onConfirm: () => executeFileUpload(file)
+      });
+    } else {
+      executeFileUpload(file);
     }
   };
 
@@ -69,14 +91,26 @@ export default function ScheduleTab({
   };
 
   const handleClearSchedule = () => {
-    if (window.confirm('هل أنت متأكد من تصفير وتفريغ جميع القاعات الحالية لرفع ملف جديد؟')) {
-      setScheduleDays([]);
-      setTotalRoomSlots(0);
-      setUploadedFileName('');
-      setSuccessMsg('');
-      setErrorMsg('');
-      setSelectedDayIdx(0);
-    }
+    setConfirmConfig({
+      title: 'تأكيد مسح وتصفير جدول القاعات بالكامل',
+      message: 'هل أنت متأكد من رغبتك في مسح جدول القاعات الحالي وإلغاء كافة الشواغر؟',
+      variant: 'danger',
+      confirmText: 'نعم، مسح وتصفير الجدول',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        `سيتم حذف كافة الأيام المجدولة (${scheduleDays.length} يوماً) بالكامل من النظام.`,
+        `سيتم تصفير إجمالي الشواغر (${totalRoomSlots} شاغراً) وإلغاء أي تسكين مرتبط بها.`,
+        'ستصبح الشاشة جاهزة لرفع ملف جدول إكسل جديد من البداية.'
+      ],
+      onConfirm: () => {
+        setScheduleDays([]);
+        setTotalRoomSlots(0);
+        setUploadedFileName('');
+        setSuccessMsg('');
+        setErrorMsg('');
+        setSelectedDayIdx(0);
+      }
+    });
   };
 
   // -------------------------------------------------------------
@@ -896,6 +930,13 @@ export default function ScheduleTab({
           </p>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmConfig)}
+        onClose={() => setConfirmConfig(null)}
+        {...confirmConfig}
+      />
 
     </div>
   );

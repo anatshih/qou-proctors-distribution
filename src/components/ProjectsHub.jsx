@@ -7,6 +7,7 @@ import {
 import { ROLES } from '../utils/auth';
 import { INITIAL_PROCTORS } from '../data/initialProctors';
 import { saveProjectToCloud, deleteProjectFromCloud } from '../utils/cloudSync';
+import ConfirmModal from './ConfirmModal';
 
 export default function ProjectsHub({
   currentUser,
@@ -21,6 +22,7 @@ export default function ProjectsHub({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState(null);
   
   // New Project Form State
   const [newSemesterCode, setNewSemesterCode] = useState('');
@@ -86,10 +88,23 @@ export default function ProjectsHub({
 
   const handleDeleteProject = (projectId, e) => {
     e.stopPropagation();
-    if (window.confirm('هل أنت متأكد من حذف هذا المشروع بالكامل؟ لا يمكن التراجع عن هذا الإجراء.')) {
-      setProjects(prev => prev.filter(p => p.id !== projectId));
-      deleteProjectFromCloud(projectId).catch(err => console.warn('Cloud delete error:', err));
-    }
+    const target = projects.find(p => p.id === projectId);
+    setConfirmConfig({
+      title: 'تأكيد الحذف النهائي للمشروع',
+      message: `هل أنت متأكد من رغبتك في حذف ملف المشروع (فصل ${target?.semesterCode || ''} - امتحان ${target?.examType || ''})؟`,
+      variant: 'danger',
+      confirmText: 'نعم، حذف المشروع نهائياً',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        'سيتم حذف هذا المشروع وسجلاته وبياناته نهائياً من السحابة وقاعدة البيانات المحلية.',
+        'لا يمكن التراجع عن هذا الإجراء أو استعادة بيانات المشروع بعد حذفه.',
+        'لن تتأثر المشاريع الأخرى المحفوظة في حسابك.'
+      ],
+      onConfirm: () => {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        deleteProjectFromCloud(projectId).catch(err => console.warn('Cloud delete error:', err));
+      }
+    });
   };
 
   return (
@@ -429,6 +444,13 @@ export default function ProjectsHub({
           <div>إعداد وتصميم الموقع: الأستاذ أحمد النتشة</div>
         </div>
       </footer>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmConfig)}
+        onClose={() => setConfirmConfig(null)}
+        {...confirmConfig}
+      />
 
     </div>
   );

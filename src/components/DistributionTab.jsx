@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { runProctorDistribution } from '../utils/distributionEngine';
+import ConfirmModal from './ConfirmModal';
 
 export default function DistributionTab({
   proctors,
@@ -16,6 +17,7 @@ export default function DistributionTab({
   setActiveTab
 }) {
   const [isRunning, setIsRunning] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState(null);
 
   // Calculations
   const activeProctors = proctors.filter(p => p.isActive && Number(p.quota) > 0);
@@ -25,7 +27,7 @@ export default function DistributionTab({
   const totalQuotas = activeProctors.reduce((sum, p) => sum + Number(p.quota), 0);
   const totalExceptions = proctors.reduce((sum, p) => sum + (p.exceptions?.length || 0) + (p.excludeSession3 ? 1 : 0), 0);
 
-  const handleRunDistribution = () => {
+  const executeDistribution = () => {
     setIsRunning(true);
 
     setTimeout(() => {
@@ -51,12 +53,23 @@ export default function DistributionTab({
     }, 400);
   };
 
-  const handleClearDistribution = () => {
-    const confirmed = window.confirm(
-      'هل أنت متأكد من تصفير وإلغاء التوزيع الحالي وتفريغ كافة القاعات؟\n\nسيتم مسح كافة أسماء المراقبين من القاعات والعودة لنقطة البداية لتتمكن من التوزيع بناءً على أي أرصدة جديدة.'
-    );
-    if (!confirmed) return;
+  const handleRunDistribution = () => {
+    setConfirmConfig({
+      title: 'تأكيد بدء التوزيع الآلي الذكي',
+      message: 'هل أنت متأكد من رغبتك في تشغيل محرك التوزيع الآلي الذكي على جدول الامتحانات؟',
+      variant: 'primary',
+      confirmText: 'بدء التوزيع الآلي الآن',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        `سيتم توزيع كافة المراقبين النشطين (${activeProctors.length} مراقباً) على شواغر القاعات (${totalRoomSlots} شاغراً) آلياً.`,
+        'سيتم استبدال أي تعيينات أو تعديلات يدوية سابقة وتطبيق الخوارزمية الذكية المحدثة.',
+        'سيتم الالتزام بنصاب كل زميل، واعتذاراته، وحظر فجوات الانتظار (جلسة 1 و 3)، مع عدالة تجميع الجلسات المتتابعة.'
+      ],
+      onConfirm: executeDistribution
+    });
+  };
 
+  const executeClearDistribution = () => {
     setScheduleDays(prevDays => {
       return (prevDays || []).map(day => ({
         ...day,
@@ -72,6 +85,22 @@ export default function DistributionTab({
     });
 
     setDistributionResult(null);
+  };
+
+  const handleClearDistribution = () => {
+    setConfirmConfig({
+      title: 'تحذير: تصفير وإلغاء التوزيع بالكامل',
+      message: 'هل أنت متأكد من رغبتك في تفريغ كافة القاعات ومسح أسماء المراقبين المعينين؟',
+      variant: 'danger',
+      confirmText: 'نعم، تفريغ كافة القاعات',
+      cancelText: 'تراجع وإلغاء',
+      consequences: [
+        `سيتم مسح أسماء جميع المراقبين من كافة القاعات في الـ ${scheduleDays.length} يوماً دفعة واحدة.`,
+        `ستتحول جميع المقاعد (${totalRoomSlots} مقعداً) إلى مقاعد شاغرة غير مسندة.`,
+        'سيبقى هيكل القاعات والتواريخ سليماً وجاهزاً لتشغيل التوزيع من جديد.'
+      ],
+      onConfirm: executeClearDistribution
+    });
   };
 
   return (
@@ -331,6 +360,13 @@ export default function DistributionTab({
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmConfig)}
+        onClose={() => setConfirmConfig(null)}
+        {...confirmConfig}
+      />
 
     </div>
   );

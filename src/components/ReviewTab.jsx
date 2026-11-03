@@ -5,6 +5,7 @@ import {
   RotateCcw, Check, X, ShieldAlert, Award, Clock
 } from 'lucide-react';
 import { sortProctors } from '../utils/proctorsHelper.js';
+import ConfirmModal from './ConfirmModal';
 
 export default function ReviewTab({
   scheduleDays,
@@ -21,6 +22,7 @@ export default function ReviewTab({
   const [customNameInputSlot, setCustomNameInputSlot] = useState(null); // { dayIndex, sessionNumber, roomIndex, slotIndex }
   const [customNameValue, setCustomNameValue] = useState('');
   const [feedbackToast, setFeedbackToast] = useState(null);
+  const [confirmConfig, setConfirmConfig] = useState(null);
 
   const showToast = (msg) => {
     setFeedbackToast(msg);
@@ -206,26 +208,42 @@ export default function ReviewTab({
 
   const handleClearSlot = (slot) => {
     const oldName = slot.assignedProctor;
-    setScheduleDays(prevDays => {
-      const nextDays = JSON.parse(JSON.stringify(prevDays));
-      const targetDay = nextDays[slot.dayIndex];
-      if (!targetDay) return prevDays;
+    if (!oldName) return;
 
-      const targetSession = targetDay.sessions.find(s => s.sessionNumber === slot.sessionNumber);
-      if (!targetSession) return prevDays;
+    setConfirmConfig({
+      title: 'تأكيد تفريغ مقعد المراقبة',
+      message: `هل أنت متأكد من رغبتك في تفريغ المقعد المسند للزميل (${oldName})؟`,
+      variant: 'warning',
+      confirmText: 'نعم، تفريغ المقعد',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        `سيتم إزالة الزميل من قاعة (${slot.roomName}) في الجلسة (${slot.sessionNumber}) يوم (${slot.dayName} ${slot.date}).`,
+        'سيعود هذا المقعد إلى قائمة الشواغر غير المسندة بانتظار تعيين بديل.',
+        'سينخفض رصيد الجلسات المنفذة للزميل بمقدار (-1 جلسة).'
+      ],
+      onConfirm: () => {
+        setScheduleDays(prevDays => {
+          const nextDays = JSON.parse(JSON.stringify(prevDays));
+          const targetDay = nextDays[slot.dayIndex];
+          if (!targetDay) return prevDays;
 
-      const targetRoom = targetSession.rooms[slot.roomIndex];
-      if (!targetRoom) return prevDays;
+          const targetSession = targetDay.sessions.find(s => s.sessionNumber === slot.sessionNumber);
+          if (!targetSession) return prevDays;
 
-      if (Array.isArray(targetRoom.assignedProctors)) {
-        targetRoom.assignedProctors[slot.slotIndex] = '';
-        targetRoom.proctor = targetRoom.assignedProctors.join(' / ');
+          const targetRoom = targetSession.rooms[slot.roomIndex];
+          if (!targetRoom) return prevDays;
+
+          if (Array.isArray(targetRoom.assignedProctors)) {
+            targetRoom.assignedProctors[slot.slotIndex] = '';
+            targetRoom.proctor = targetRoom.assignedProctors.join(' / ');
+          }
+
+          return nextDays;
+        });
+
+        showToast(`تم تفريغ الخانة من (${oldName})`);
       }
-
-      return nextDays;
     });
-
-    showToast(`تم تفريغ الخانة من (${oldName})`);
   };
 
   return (
@@ -703,6 +721,13 @@ export default function ReviewTab({
           <ArrowLeft className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmConfig)}
+        onClose={() => setConfirmConfig(null)}
+        {...confirmConfig}
+      />
 
     </div>
   );

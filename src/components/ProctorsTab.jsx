@@ -5,6 +5,7 @@ import {
   GraduationCap, Briefcase, Ban, Star, ShieldCheck
 } from 'lucide-react';
 import ExceptionsModal from './ExceptionsModal';
+import ConfirmModal from './ConfirmModal';
 import { sortProctors } from '../utils/proctorsHelper.js';
 
 export default function ProctorsTab({
@@ -21,6 +22,7 @@ export default function ProctorsTab({
   const [newProctorQuota, setNewProctorQuota] = useState('');
   const [newProctorType, setNewProctorType] = useState('academic');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState(null);
 
   // Statistics
   const totalCount = proctors.length;
@@ -79,9 +81,22 @@ export default function ProctorsTab({
   };
 
   const handleDeleteProctor = (id) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا المراقب نهائياً من الكادر؟')) {
-      setProctors(prev => prev.filter(p => p.id !== id));
-    }
+    const target = proctors.find(p => p.id === id);
+    setConfirmConfig({
+      title: 'تأكيد حذف المراقب من الكادر',
+      message: `هل أنت متأكد من رغبتك في حذف الزميل (${target?.name || ''}) نهائياً من الكادر؟`,
+      variant: 'danger',
+      confirmText: 'نعم، حذف المراقب',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        'سيتم إزالة الزميل من قائمة كادر المراقبين نهائياً.',
+        `سيتم إلغاء نصابه المطلوب (${target?.quota || 0} جلسة) وتفريغ أي مقاعد مسندة له.`,
+        'يمكنك إعادة إضافة الزميل يدوياً في أي وقت لاحقاً.'
+      ],
+      onConfirm: () => {
+        setProctors(prev => prev.filter(p => p.id !== id));
+      }
+    });
   };
 
   const handleAddProctor = (e) => {
@@ -125,9 +140,21 @@ export default function ProctorsTab({
   };
 
   const handleResetQuotas = () => {
-    if (window.confirm('هل تريد تصفير جميع الأعباء والأنصبة لجميع المراقبين لبدء دورة جديدة؟')) {
-      setProctors(prev => prev.map(p => ({ ...p, quota: 0 })));
-    }
+    setConfirmConfig({
+      title: 'تأكيد تصفير جميع أنصبة المراقبين',
+      message: 'هل تريد تصفير جميع الأعباء والأنصبة لجميع المراقبين لبدء دورة إدخال جديدة؟',
+      variant: 'warning',
+      confirmText: 'نعم، تصفير كافة الأنصبة',
+      cancelText: 'إلغاء وتراجع',
+      consequences: [
+        `ستصبح أنصبة كافة الزملاء (${proctors.length} مراقباً) مساوية للصفر (0 جلسة).`,
+        'سيتطلب الأمر إعادة إدخال الأنصبة يدوياً أو استيرادها من جديد.',
+        'لن يتم حذف الأسماء أو الاستثناءات والاعتذارات المسجلة مسبقاً.'
+      ],
+      onConfirm: () => {
+        setProctors(prev => prev.map(p => ({ ...p, quota: 0 })));
+      }
+    });
   };
 
   return (
@@ -591,6 +618,13 @@ export default function ProctorsTab({
           onSaveExceptions={handleSaveExceptions}
         />
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmConfig)}
+        onClose={() => setConfirmConfig(null)}
+        {...confirmConfig}
+      />
 
     </div>
   );
