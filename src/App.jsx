@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import LoginPage from './components/LoginPage';
 import ProjectsHub from './components/ProjectsHub';
 import Navbar from './components/Navbar';
-import ProctorsTab from './components/ProctorsTab';
-import ScheduleTab from './components/ScheduleTab';
-import DistributionTab from './components/DistributionTab';
-import ReviewTab from './components/ReviewTab';
-import ResultsTab from './components/ResultsTab';
-import SettingsModal from './components/SettingsModal';
 import ConfirmModal from './components/ConfirmModal';
+
+// Code-split tabs: Heavy components loaded asynchronously on demand
+const ScheduleTab = lazy(() => import('./components/ScheduleTab'));
+const ProctorsTab = lazy(() => import('./components/ProctorsTab'));
+const DistributionTab = lazy(() => import('./components/DistributionTab'));
+const ReviewTab = lazy(() => import('./components/ReviewTab'));
+const ResultsTab = lazy(() => import('./components/ResultsTab'));
+const SettingsModal = lazy(() => import('./components/SettingsModal'));
 
 import { INITIAL_PROCTORS } from './data/initialProctors';
 import { getStoredAccounts, saveStoredAccounts } from './utils/auth';
@@ -284,22 +286,26 @@ export default function App() {
         />
 
         {/* Global Settings Modal */}
-        <SettingsModal
-          isOpen={isSettingsModalOpen}
-          onClose={() => setIsSettingsModalOpen(false)}
-          semesterCode="1261"
-          setSemesterCode={() => {}}
-          examType="نصفي"
-          setExamType={() => {}}
-          proctors={INITIAL_PROCTORS}
-          setProctors={() => {}}
-          scheduleDays={[]}
-          setScheduleDays={() => {}}
-          setTotalRoomSlots={() => {}}
-          setDistributionResult={() => {}}
-          accounts={accounts}
-          setAccounts={setAccounts}
-        />
+        <Suspense fallback={null}>
+          {isSettingsModalOpen && (
+            <SettingsModal
+              isOpen={isSettingsModalOpen}
+              onClose={() => setIsSettingsModalOpen(false)}
+              semesterCode="1261"
+              setSemesterCode={() => {}}
+              examType="نصفي"
+              setExamType={() => {}}
+              proctors={INITIAL_PROCTORS}
+              setProctors={() => {}}
+              scheduleDays={[]}
+              setScheduleDays={() => {}}
+              setTotalRoomSlots={() => {}}
+              setDistributionResult={() => {}}
+              accounts={accounts}
+              setAccounts={setAccounts}
+            />
+          )}
+        </Suspense>
       </>
     );
   }
@@ -343,105 +349,113 @@ export default function App() {
       {/* Main Project Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6">
         
-        {/* Step 1: Exam Rooms Schedule & Capacities */}
-        {activeTab === 'schedule' && (
-          <ScheduleTab
-            scheduleDays={activeProject.scheduleDays || []}
-            setScheduleDays={(newDays) => {
-              updateActiveProject(prev => ({
-                ...prev,
-                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays,
-                isUserUploaded: true
-              }));
-            }}
-            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
-            setTotalRoomSlots={(slots) => {
-              updateActiveProject({ totalRoomSlots: slots });
-            }}
-            uploadedFileName={activeProject.uploadedFileName || ''}
-            setUploadedFileName={(name) => {
-              updateActiveProject({ uploadedFileName: name });
-            }}
-            semesterCode={activeProject.semesterCode}
-            examType={activeProject.examType}
-            onNavigateNext={setActiveTab}
-          />
-        )}
+        {/* Tab Components loaded on demand via Suspense */}
+        <Suspense fallback={
+          <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500 animate-pulse">
+            <div className="w-8 h-8 rounded-full border-3 border-qou-primary border-t-transparent animate-spin"></div>
+            <span className="text-xs font-bold">جارٍ تجهيز واجهة العمل...</span>
+          </div>
+        }>
+          {/* Step 1: Exam Rooms Schedule & Capacities */}
+          {activeTab === 'schedule' && (
+            <ScheduleTab
+              scheduleDays={activeProject.scheduleDays || []}
+              setScheduleDays={(newDays) => {
+                updateActiveProject(prev => ({
+                  ...prev,
+                  scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays,
+                  isUserUploaded: true
+                }));
+              }}
+              totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
+              setTotalRoomSlots={(slots) => {
+                updateActiveProject({ totalRoomSlots: slots });
+              }}
+              uploadedFileName={activeProject.uploadedFileName || ''}
+              setUploadedFileName={(name) => {
+                updateActiveProject({ uploadedFileName: name });
+              }}
+              semesterCode={activeProject.semesterCode}
+              examType={activeProject.examType}
+              onNavigateNext={setActiveTab}
+            />
+          )}
 
-        {/* Step 2: Proctors Management & Quotas */}
-        {activeTab === 'proctors' && (
-          <ProctorsTab
-            proctors={activeProject.proctors || []}
-            setProctors={(newProctors) => {
-              updateActiveProject(prev => ({
-                ...prev,
-                proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
-              }));
-            }}
-            scheduleDays={activeProject.scheduleDays || []}
-            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
-            onNavigateNext={setActiveTab}
-          />
-        )}
+          {/* Step 2: Proctors Management & Quotas */}
+          {activeTab === 'proctors' && (
+            <ProctorsTab
+              proctors={activeProject.proctors || []}
+              setProctors={(newProctors) => {
+                updateActiveProject(prev => ({
+                  ...prev,
+                  proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
+                }));
+              }}
+              scheduleDays={activeProject.scheduleDays || []}
+              totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
+              onNavigateNext={setActiveTab}
+            />
+          )}
 
-        {/* Step 3: Distribution Engine */}
-        {activeTab === 'distribution' && (
-          <DistributionTab
-            proctors={activeProject.proctors || []}
-            scheduleDays={activeProject.scheduleDays || []}
-            setScheduleDays={(newDays) => {
-              updateActiveProject(prev => ({
-                ...prev,
-                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
-              }));
-            }}
-            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
-            distributionResult={activeProject.distributionResult}
-            setDistributionResult={(result) => {
-              updateActiveProject({ distributionResult: result });
-            }}
-            setActiveTab={setActiveTab}
-          />
-        )}
+          {/* Step 3: Distribution Engine */}
+          {activeTab === 'distribution' && (
+            <DistributionTab
+              proctors={activeProject.proctors || []}
+              scheduleDays={activeProject.scheduleDays || []}
+              setScheduleDays={(newDays) => {
+                updateActiveProject(prev => ({
+                  ...prev,
+                  scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+                }));
+              }}
+              totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
+              distributionResult={activeProject.distributionResult}
+              setDistributionResult={(result) => {
+                updateActiveProject({ distributionResult: result });
+              }}
+              setActiveTab={setActiveTab}
+            />
+          )}
 
-        {/* Step 4: Review & Manual Proctor Assignment */}
-        {activeTab === 'review' && (
-          <ReviewTab
-            scheduleDays={activeProject.scheduleDays || []}
-            setScheduleDays={(newDays) => {
-              updateActiveProject(prev => ({
-                ...prev,
-                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
-              }));
-            }}
-            proctors={activeProject.proctors || []}
-            setProctors={(newProctors) => {
-              updateActiveProject(prev => ({
-                ...prev,
-                proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
-              }));
-            }}
-            totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
-            onNavigateNext={setActiveTab}
-          />
-        )}
+          {/* Step 4: Review & Manual Proctor Assignment */}
+          {activeTab === 'review' && (
+            <ReviewTab
+              scheduleDays={activeProject.scheduleDays || []}
+              setScheduleDays={(newDays) => {
+                updateActiveProject(prev => ({
+                  ...prev,
+                  scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+                }));
+              }}
+              proctors={activeProject.proctors || []}
+              setProctors={(newProctors) => {
+                updateActiveProject(prev => ({
+                  ...prev,
+                  proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
+                }));
+              }}
+              totalRoomSlots={workflowStats?.totalSlots || activeProject.totalRoomSlots || 0}
+              onNavigateNext={setActiveTab}
+            />
+          )}
 
-        {/* Step 5: Results & Print-ready Views */}
-        {activeTab === 'results' && (
-          <ResultsTab
-            scheduleDays={activeProject.scheduleDays || []}
-            setScheduleDays={(newDays) => {
-              updateActiveProject(prev => ({
-                ...prev,
-                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
-              }));
-            }}
-            proctors={activeProject.proctors || []}
-            distributionResult={activeProject.distributionResult}
-            semesterCode={activeProject.semesterCode}
-            examType={activeProject.examType}
-          />
-        )}
+          {/* Step 5: Results & Print-ready Views */}
+          {activeTab === 'results' && (
+            <ResultsTab
+              scheduleDays={activeProject.scheduleDays || []}
+              setScheduleDays={(newDays) => {
+                updateActiveProject(prev => ({
+                  ...prev,
+                  scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+                }));
+              }}
+              proctors={activeProject.proctors || []}
+              distributionResult={activeProject.distributionResult}
+              semesterCode={activeProject.semesterCode}
+              examType={activeProject.examType}
+            />
+          )}
+        </Suspense>
 
       </main>
 
@@ -458,22 +472,26 @@ export default function App() {
       </footer>
 
       {/* Global Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        semesterCode={activeProject.semesterCode}
-        setSemesterCode={(val) => updateActiveProject({ semesterCode: val })}
-        examType={activeProject.examType}
-        setExamType={(val) => updateActiveProject({ examType: val })}
-        proctors={activeProject.proctors}
-        setProctors={(val) => updateActiveProject({ proctors: val })}
-        scheduleDays={activeProject.scheduleDays}
-        setScheduleDays={(val) => updateActiveProject({ scheduleDays: val })}
-        setTotalRoomSlots={(val) => updateActiveProject({ totalRoomSlots: val })}
-        setDistributionResult={(val) => updateActiveProject({ distributionResult: val })}
-        accounts={accounts}
-        setAccounts={setAccounts}
-      />
+      <Suspense fallback={null}>
+        {isSettingsModalOpen && (
+          <SettingsModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            semesterCode={activeProject.semesterCode}
+            setSemesterCode={(val) => updateActiveProject({ semesterCode: val })}
+            examType={activeProject.examType}
+            setExamType={(val) => updateActiveProject({ examType: val })}
+            proctors={activeProject.proctors}
+            setProctors={(val) => updateActiveProject({ proctors: val })}
+            scheduleDays={activeProject.scheduleDays}
+            setScheduleDays={(val) => updateActiveProject({ scheduleDays: val })}
+            setTotalRoomSlots={(val) => updateActiveProject({ totalRoomSlots: val })}
+            setDistributionResult={(val) => updateActiveProject({ distributionResult: val })}
+            accounts={accounts}
+            setAccounts={setAccounts}
+          />
+        )}
+      </Suspense>
 
       {/* Real-time Concurrency Conflict Resolution Dialog */}
       {conflictModalConfig && (
