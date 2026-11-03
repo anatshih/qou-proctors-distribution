@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "qou-proctors",
     "public": "dist",
     "ignore": [
       "firebase.json",

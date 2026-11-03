@@ -1,5 +1,14 @@
 {
   "projects": {
-    "default": "qou-proctors-distribution"
+    "default": "alnaseem-field-reports"
+  },
+  "targets": {
+    "alnaseem-field-reports": {
+      "hosting": {
+        "qou-proctors": [
+          "qou-proctors"
+        ]
+      }
+    }
   }
 }
