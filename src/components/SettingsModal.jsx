@@ -1,0 +1,246 @@
+import React, { useState } from 'react';
+import { X, Settings, Download, Upload, RotateCcw, Check, AlertTriangle } from 'lucide-react';
+import { INITIAL_PROCTORS } from '../data/initialProctors';
+import { DEFAULT_SCHEDULE, DEFAULT_TOTAL_SLOTS } from '../data/defaultSchedule';
+
+export default function SettingsModal({
+  isOpen,
+  onClose,
+  semesterCode,
+  setSemesterCode,
+  examType,
+  setExamType,
+  proctors,
+  setProctors,
+  scheduleDays,
+  setScheduleDays,
+  setTotalRoomSlots,
+  setDistributionResult
+}) {
+  if (!isOpen) return null;
+
+  const [tempSemester, setTempSemester] = useState(semesterCode);
+  const [tempExamType, setTempExamType] = useState(examType);
+
+  const examTypeOptions = [
+    'نصفي',
+    'نهائي',
+    'غير مكتمل نصفي',
+    'غير مكتمل نهائي'
+  ];
+
+  const handleSave = () => {
+    setSemesterCode(tempSemester.trim() || '1261');
+    setExamType(tempExamType);
+    onClose();
+  };
+
+  // Export all system state as a JSON backup
+  const handleExportBackup = () => {
+    const backupData = {
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      semesterCode: tempSemester,
+      examType: tempExamType,
+      proctors,
+      scheduleDays
+    };
+
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `نسخة_احتياطية_مراقبات_${tempSemester}_${tempExamType}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import JSON backup
+  const handleImportBackup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        if (data.proctors && Array.isArray(data.proctors)) {
+          setProctors(data.proctors);
+        }
+        if (data.scheduleDays && Array.isArray(data.scheduleDays)) {
+          setScheduleDays(data.scheduleDays);
+          const totalSlots = data.scheduleDays.reduce((acc, d) => 
+            acc + (d.sessions || []).reduce((sAcc, s) => sAcc + (s.rooms || []).length, 0), 0);
+          setTotalRoomSlots(totalSlots);
+        }
+        if (data.semesterCode) setSemesterCode(data.semesterCode);
+        if (data.examType) setExamType(data.examType);
+        setDistributionResult(null);
+        alert('تمت استعادة النسخة الاحتياطية بنجاح!');
+        onClose();
+      } catch (err) {
+        alert('ملف النسخة الاحتياطية غير صالح.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Reset to Factory Default
+  const handleFactoryReset = () => {
+    if (window.confirm('تحذير: هل أنت متأكد من إعادة ضبط النظام بالكامل إلى الحالة الافتراضية؟ سيتم استعادة الـ 43 مراقباً وجدول الفصل 1261 الافتراضي.')) {
+      setProctors(INITIAL_PROCTORS);
+      setScheduleDays(DEFAULT_SCHEDULE);
+      setTotalRoomSlots(DEFAULT_TOTAL_SLOTS);
+      setSemesterCode('1261');
+      setExamType('نصفي');
+      setDistributionResult(null);
+      localStorage.clear();
+      alert('تمت إعادة ضبط النظام إلى الإعدادات الافتراضية بنجاح.');
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        
+        {/* Header */}
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold">
+              <Settings className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">
+                إعدادات النظام والفصل الدراسي
+              </h2>
+              <p className="text-xs text-slate-500">
+                صلاحية خاصة بـ: <strong>مدير النظام (Super Admin)</strong>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+
+          {/* Semester & Exam Type Settings */}
+          <div className="space-y-4">
+            <h4 className="font-bold text-sm text-slate-800 pb-2 border-b border-slate-100">
+              بيانات الدورة الامتحانية الحالية
+            </h4>
+
+            {/* Semester Code */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                رقم الفصل الدراسي:
+              </label>
+              <input
+                type="text"
+                value={tempSemester}
+                onChange={(e) => setTempSemester(e.target.value)}
+                placeholder="مثال: 1261"
+                className="w-full text-sm font-bold px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-qou-primary"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">يظهر في ترويسات الكشوفات وتسمية ملفات الإكسل المصدرة.</p>
+            </div>
+
+            {/* Exam Type Options */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2">
+                نوع الامتحان:
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {examTypeOptions.map((type) => {
+                  const isSelected = tempExamType === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setTempExamType(type)}
+                      className={`p-3 rounded-xl border text-xs font-bold transition flex items-center justify-between ${
+                        isSelected
+                          ? 'border-qou-primary bg-emerald-50 text-qou-primary shadow-sm'
+                          : 'border-slate-200 text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <span>{type}</span>
+                      {isSelected && <Check className="w-4 h-4 text-qou-primary" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Backup & Restore Section */}
+          <div className="space-y-3 pt-3 border-t border-slate-100">
+            <h4 className="font-bold text-sm text-slate-800">
+              النسخ الاحتياطي واستعادة البيانات
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleExportBackup}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 border border-slate-200"
+              >
+                <Download className="w-4 h-4 text-slate-500" />
+                <span>تصدير نسخة احتياطية (JSON)</span>
+              </button>
+
+              <label className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 border border-slate-200 cursor-pointer">
+                <Upload className="w-4 h-4 text-slate-500" />
+                <span>استيراد نسخة احتياطية</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleImportBackup}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Factory Reset */}
+          <div className="pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={handleFactoryReset}
+              className="w-full text-xs text-rose-600 hover:text-rose-700 font-bold bg-rose-50 hover:bg-rose-100/80 border border-rose-200 rounded-xl py-2.5 transition flex items-center justify-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>إعادة ضبط المصنع (استعادة الكادر والجدول الأصليين)</span>
+            </button>
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition"
+          >
+            إلغاء
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-5 py-2 text-xs font-bold bg-qou-primary hover:bg-qou-dark text-white rounded-xl shadow-md transition flex items-center gap-1.5"
+          >
+            <Check className="w-4 h-4" />
+            <span>حفظ الإعدادات</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
