@@ -37,11 +37,12 @@ function extractDayAndDate(row) {
     // 2. Detect Date
     if (!dateStr) {
       if (cell instanceof Date) {
-        dateStr = `${cell.getMonth() + 1}/${cell.getDate()}/${cell.getFullYear()}`;
+        // Standard Arabic / Palestinian format: Day/Month/Year (DD/MM/YYYY)
+        dateStr = `${cell.getDate()}/${cell.getMonth() + 1}/${cell.getFullYear()}`;
       } else if (typeof cell === 'number' && cell > 30000 && cell < 60000) {
         // Excel serial date number
         const d = new Date(Math.round((cell - 25569) * 86400 * 1000));
-        dateStr = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+        dateStr = `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`;
       } else if (typeof cell === 'string') {
         const dateMatch = cell.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})|(\d{4}-\d{1,2}-\d{1,2})/);
         if (dateMatch) {
