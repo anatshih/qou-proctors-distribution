@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { sortProctors } from './proctorsHelper.js';
 
 /**
  * Helper to normalize 2-digit years (e.g. 11/7/26 -> 11/7/2026)
@@ -228,7 +229,9 @@ export function exportProctorsMatrixExcel(proctorStats, days, semesterCode, exam
   rows.push(dayRow);
   rows.push(sessionRow);
 
-  proctorStats.forEach(p => {
+  const sortedProctorStats = sortProctors(proctorStats);
+
+  sortedProctorStats.forEach(p => {
     const pRow = [
       p.name,
       p.isActive ? 'نشط' : 'مجمّد',

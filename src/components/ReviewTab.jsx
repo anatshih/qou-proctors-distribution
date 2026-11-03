@@ -4,6 +4,7 @@ import {
   UserPlus, UserMinus, Plus, Sparkles, Filter, Calendar, Building, 
   RotateCcw, Check, X, ShieldAlert, Award, Clock
 } from 'lucide-react';
+import { sortProctors } from '../utils/proctorsHelper.js';
 
 export default function ReviewTab({
   scheduleDays,
@@ -589,18 +590,41 @@ export default function ReviewTab({
                                 {isAssigned ? '🔄 تغيير المراقب...' : '👈 اختر مراقباً من الكادر...'}
                               </option>
 
-                              {/* Available Proctors */}
-                              <optgroup label="كادر المراقبين (حسب الحالة والنصاب):">
-                                {proctors.filter(p => p.isActive).map(p => {
+                              {/* Available Proctors - Academics Alphabetical */}
+                              <optgroup label="كادر الأكاديميين (مرتب أبجدياً):">
+                                {sortProctors(proctors.filter(p => p.isActive && (p.type || 'academic') === 'academic')).map(p => {
                                   const count = proctorAssignmentsCount[p.name] || 0;
                                   const pQuota = Number(p.quota) || 0;
                                   const hasConflict = currentProctorsInSession.has(p.name) && p.name !== slot.assignedProctor;
                                   const isOver = pQuota > 0 && count >= pQuota;
-                                  const isAdmin = (p.type || 'academic') === 'administrative';
 
-                                  let labelSuffix = isAdmin ? `(${count}/سقف ${pQuota})` : `(${count}/${pQuota})`;
+                                  let labelSuffix = `(${count}/${pQuota})`;
                                   if (hasConflict) labelSuffix += ' ⛔ مشغول بالجلسة';
-                                  else if (isOver) labelSuffix += isAdmin ? ' ⭐ فوق السقف' : ' ⭐ إضافي فوق الرصيد';
+                                  else if (isOver) labelSuffix += ' ⭐ إضافي فوق الرصيد';
+
+                                  return (
+                                    <option 
+                                      key={p.id} 
+                                      value={p.name}
+                                      disabled={hasConflict}
+                                    >
+                                      {p.name} {labelSuffix}
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+
+                              {/* Available Proctors - Administrative Alphabetical */}
+                              <optgroup label="كادر الإداريين (مرتب أبجدياً):">
+                                {sortProctors(proctors.filter(p => p.isActive && p.type === 'administrative')).map(p => {
+                                  const count = proctorAssignmentsCount[p.name] || 0;
+                                  const pQuota = Number(p.quota) || 0;
+                                  const hasConflict = currentProctorsInSession.has(p.name) && p.name !== slot.assignedProctor;
+                                  const isOver = pQuota > 0 && count >= pQuota;
+
+                                  let labelSuffix = `(${count}/سقف ${pQuota})`;
+                                  if (hasConflict) labelSuffix += ' ⛔ مشغول بالجلسة';
+                                  else if (isOver) labelSuffix += ' ⭐ فوق السقف';
 
                                   return (
                                     <option 

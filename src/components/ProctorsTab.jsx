@@ -5,6 +5,7 @@ import {
   GraduationCap, Briefcase, Ban, Star, ShieldCheck
 } from 'lucide-react';
 import ExceptionsModal from './ExceptionsModal';
+import { sortProctors } from '../utils/proctorsHelper.js';
 
 export default function ProctorsTab({
   proctors,
@@ -33,18 +34,20 @@ export default function ProctorsTab({
     .reduce((sum, p) => sum + (Number(p.quota) || 0), 0);
   const diffSlots = totalQuotasAssigned - totalRoomSlots;
 
-  // Filtered proctors
-  const filteredProctors = proctors.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
+  // Filtered and canonically sorted proctors (Academics first, then Administrative, alphabetical in Arabic)
+  const filteredProctors = sortProctors(
+    proctors.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchesSearch) return false;
 
-    const proctorType = p.type || 'academic';
-    if (filterMode === 'academic') return proctorType === 'academic';
-    if (filterMode === 'administrative') return proctorType === 'administrative';
-    if (filterMode === 'active') return p.isActive;
-    if (filterMode === 'frozen') return !p.isActive;
-    return true;
-  });
+      const proctorType = p.type || 'academic';
+      if (filterMode === 'academic') return proctorType === 'academic';
+      if (filterMode === 'administrative') return proctorType === 'administrative';
+      if (filterMode === 'active') return p.isActive;
+      if (filterMode === 'frozen') return !p.isActive;
+      return true;
+    })
+  );
 
   // Handlers
   const handleToggleActive = (id) => {

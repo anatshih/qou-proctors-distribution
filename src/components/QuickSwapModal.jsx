@@ -3,6 +3,7 @@ import {
   X, ArrowLeftRight, UserCheck, AlertTriangle, Search, 
   Users, Trash2, CheckCircle, ShieldAlert, Sparkles, Building
 } from 'lucide-react';
+import { sortProctors } from '../utils/proctorsHelper.js';
 
 export default function QuickSwapModal({
   isOpen,
@@ -139,9 +140,9 @@ export default function QuickSwapModal({
     });
   }, [proctors, proctorTotalCounts, proctorsInSessionMap, slotData]);
 
-  // Filtered proctor roster for selection
+  // Filtered proctor roster for selection (Sorted: Academics first, then Administrative, alphabetical in Arabic)
   const filteredProctorRoster = useMemo(() => {
-    return enrichedProctors.filter(p => {
+    const list = enrichedProctors.filter(p => {
       if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
       }
@@ -153,6 +154,7 @@ export default function QuickSwapModal({
       }
       return true;
     });
+    return sortProctors(list);
   }, [enrichedProctors, searchTerm, rosterFilter]);
 
   // Actions

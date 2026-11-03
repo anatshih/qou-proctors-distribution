@@ -1,32 +1,39 @@
-export const INITIAL_PROCTORS = [
-  "اسماعيل محمد اسماعيل شندي (عمايره)",
+// Academic Staff (27 Proctors - Alphabetical in Arabic)
+const ACADEMIC_PROCTORS = [
   "أحمد عوني حجازي النتشة",
   "أسماء عبد القادر يوسف شاهين",
+  "اسماعيل محمد اسماعيل شندي (عمايره)",
   "تيسير عبد الحميد يونس ابو ساكور",
   "جهاد محمود حسين اغباريه",
   "حمزة عبد الحميد مجاهد مجاهد",
+  "خالد ابراهيم مطلق النجار",
   "خالد سليمان محمد كتلو",
   "رائد أحمد إبراهيم أبو عيد",
+  "راتب حريبات",
   "سناء عزمي ابراهيم ابو فاره",
   "شادي محمد اقطيش عواد",
+  "صالح عبد الفتاح صالح الشلالفه",
   "عادل عطيه إبراهيم ريان",
   "عبد القادر محمد يوسف دراويش",
   "عصام محمد عيد أبو سنينة",
   "عيسى خليل محمود المصري",
   "غسان نعمان محمود ابو سنينة",
+  "فؤاد شاور",
   "فضل ابراهيم عبدالعزيز عيدة",
   "كامل عيسى اسماعيل سليم",
+  "لمياء محمد محمود عمرو",
   "ماجد احمد عبد الله ابو ريان",
   "محمود عبد الحافظ اسماعيل مغثه",
   "مريم رفيق محمد مسوده",
-  "هيا عمران بدر عابدين",
-  "خالد ابراهيم مطلق النجار",
-  "صالح عبد الفتاح صالح الشلالفه",
   "نور القواسمي",
-  "لمياء محمد محمود عمرو",
-  "راتب حريبات",
+  "هيا عمران بدر عابدين"
+];
+
+// Administrative Staff (16 Proctors - Alphabetical in Arabic)
+const ADMINISTRATIVE_PROCTORS = [
   "باسل عزمي عبد الفتاح المرقطن",
   "خالد عبد الفتاح خالد ابو شكر",
+  "داليه نعمان عمرو",
   "دعاء محمد راتب شبانه",
   "رمزي محمد أحمد الحيح",
   "زهية عبد الرؤوف عبد الله القواسمي",
@@ -35,20 +42,32 @@ export const INITIAL_PROCTORS = [
   "سماح محي الدين محمد نعمان سيد احمد",
   "عباده موسى حسين عمرو",
   "عدنان يعقوب يونس وزوز",
-  "عنايه عبد الخالق خليل السعدي",
   "فداء تيسير محمود طه",
-  "فؤاد شاور",
   "فهد محمد حسن طنينة",
   "محمد عبد المجيد محمد عودة",
   "محمد نبيل توفيق جرار",
   "يسرى سميح هاشم أبو عيشة"
-].map((name, index) => ({
-  id: `proc_${index + 1}`,
-  name,
-  quota: 0,
-  isActive: true,
-  type: 'academic', // 'academic' | 'administrative'
-  excludeSession3: false,
-  preferredPair: 'any', // 'any' | '1-2' | '2-3'
-  exceptions: [] // array of key strings like "date_session"
-}));
+];
+
+export const INITIAL_PROCTORS = [
+  ...ACADEMIC_PROCTORS.map((name, index) => ({
+    id: `proc_acad_${index + 1}`,
+    name,
+    quota: 0,
+    isActive: true,
+    type: 'academic',
+    excludeSession3: false,
+    preferredPair: 'any',
+    exceptions: []
+  })),
+  ...ADMINISTRATIVE_PROCTORS.map((name, index) => ({
+    id: `proc_admin_${index + 1}`,
+    name,
+    quota: 0,
+    isActive: true,
+    type: 'administrative',
+    excludeSession3: false,
+    preferredPair: 'any',
+    exceptions: []
+  }))
+];

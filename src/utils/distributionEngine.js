@@ -18,6 +18,8 @@
  * 8. Inviolable Constraints: Strictly honors user-defined exceptions, physical non-collision (no proctor twice in same session), and excludeSession3.
  */
 
+import { sortProctors } from './proctorsHelper.js';
+
 export function runProctorDistribution(scheduleDays, proctorsList) {
   // Deep clone schedule to avoid direct mutation
   const days = JSON.parse(JSON.stringify(scheduleDays));
@@ -450,6 +452,8 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
     };
   });
 
+  const sortedProctorStats = sortProctors(proctorStats);
+
   const totalQuota = activeProctors.reduce((sum, p) => sum + p.quota, 0);
   const activeAcademicsCount = activeProctors.filter(p => (p.type || 'academic') === 'academic').length;
   const activeAdministrativesCount = activeProctors.filter(p => p.type === 'administrative').length;
@@ -457,7 +461,7 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
   return {
     success: true,
     schedule: days,
-    proctorStats,
+    proctorStats: sortedProctorStats,
     summary: {
       totalSlots,
       filledSlots,

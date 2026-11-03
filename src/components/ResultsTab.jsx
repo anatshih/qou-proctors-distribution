@@ -5,6 +5,7 @@ import {
   Users, Check, Plus, AlertTriangle, LayoutGrid, FileText
 } from 'lucide-react';
 import { exportDistributedScheduleExcel, exportProctorsMatrixExcel } from '../utils/excelHandler';
+import { sortProctors } from '../utils/proctorsHelper.js';
 import QuickSwapModal from './QuickSwapModal';
 
 export default function ResultsTab({
@@ -105,7 +106,7 @@ export default function ResultsTab({
         if (name && name.trim()) set.add(name);
       });
     });
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar', { sensitivity: 'base' }));
   }, [allRooms]);
 
   // Dynamic live count of assignments per proctor
@@ -121,9 +122,9 @@ export default function ResultsTab({
     return counts;
   }, [allRooms]);
 
-  // Live dynamic stats for matrix
+  // Live dynamic stats for matrix (canonically sorted: Academics first, then Administrative, alphabetical in Arabic)
   const liveProctorStats = useMemo(() => {
-    return proctors.map(p => {
+    const list = proctors.map(p => {
       const assignedCount = liveProctorCounts[p.name] || 0;
       const quota = Number(p.quota) || 0;
       const difference = assignedCount - quota;
@@ -133,6 +134,7 @@ export default function ResultsTab({
         difference
       };
     });
+    return sortProctors(list);
   }, [proctors, liveProctorCounts]);
 
   // Pre-flattened sessions list for matrix columns (Days -> Sessions)
