@@ -45,10 +45,10 @@ export default function Navbar({
 
             <div className="hidden md:block">
               <h1 className="font-extrabold text-sm leading-tight tracking-wide">
-                جامعة القدس المفتوحة
+                جامعة القدس المفتوحة — فرع الخليل
               </h1>
               <p className="text-[11px] text-emerald-100 font-medium">
-                نظام التوزيع الذكي للمراقبات
+                قسم الامتحانات
               </p>
             </div>
           </div>

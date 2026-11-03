@@ -57,11 +57,9 @@ export default function ProjectsHub({
       examType: newExamType,
       createdAt: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }),
       updatedAt: new Date().toISOString(),
-      // Empty schedule: waiting for user to upload excel
       scheduleDays: [],
       totalRoomSlots: 0,
       uploadedFileName: '',
-      // Fresh clean proctors roster with 0 quotas
       proctors: INITIAL_PROCTORS.map(p => ({
         ...p,
         quota: 0,
@@ -102,10 +100,10 @@ export default function ProjectsHub({
               </div>
               <div>
                 <h1 className="font-black text-base lg:text-lg leading-tight">
-                  جامعة القدس المفتوحة
+                  جامعة القدس المفتوحة — فرع الخليل
                 </h1>
                 <p className="text-xs text-emerald-100">
-                  مستودع مشاريع وفصول مراقبات الامتحانات
+                  قسم الامتحانات
                 </p>
               </div>
             </div>
@@ -405,6 +403,14 @@ export default function ProjectsHub({
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200 bg-white py-4 mt-8 text-center text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-2">
+          <div>جامعة القدس المفتوحة — فرع الخليل | المساعد الأكاديمي الدكتور مراد الجندي</div>
+          <div>إعداد وتصميم الموقع: الأستاذ أحمد النتشة</div>
+        </div>
+      </footer>
 
     </div>
   );

@@ -46,10 +46,10 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
           <div className="text-white">
             <div className="font-extrabold text-base sm:text-lg tracking-wide">
-              جامعة القدس المفتوحة
+              جامعة القدس المفتوحة — فرع الخليل
             </div>
             <div className="text-xs text-emerald-200">
-              عمادة القبول والتسجيل والامتحانات
+              قسم الامتحانات
             </div>
           </div>
         </div>
@@ -174,8 +174,9 @@ export default function LoginPage({ onLoginSuccess }) {
       </div>
 
       {/* Footer */}
-      <div className="text-center text-xs text-emerald-200/70 py-2">
-        نظام التوزيع الذكي لمراقبات الامتحانات — جامعة القدس المفتوحة &copy; {new Date().getFullYear()}
+      <div className="text-center text-xs text-emerald-200/80 py-3 space-y-1">
+        <div>جامعة القدس المفتوحة — فرع الخليل | المساعد الأكاديمي الدكتور مراد الجندي</div>
+        <div className="text-[11px] text-emerald-300/70">إعداد وتصميم الموقع: الأستاذ أحمد النتشة</div>
       </div>
 
     </div>

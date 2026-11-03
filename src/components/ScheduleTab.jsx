@@ -243,10 +243,10 @@ export default function ScheduleTab({
                 <div className="flex items-center justify-between">
                   <div className="text-right">
                     <h2 className="text-xl font-black text-slate-900">
-                      جامعة القدس المفتوحة
+                      جامعة القدس المفتوحة — فرع الخليل
                     </h2>
                     <h3 className="text-xs font-bold text-qou-primary mt-0.5">
-                      عمادة القبول والتسجيل والامتحانات
+                      قسم الامتحانات
                     </h3>
                     <p className="text-xs text-slate-600 mt-1">
                       تقرير تدقيق ومراجعة قاعات الامتحانات — الفصل: <strong className="text-slate-900">{semesterCode}</strong> | امتحان: <strong className="text-slate-900">{examType}</strong>

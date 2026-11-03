@@ -294,10 +294,10 @@ export default function ResultsTab({
             {/* Right: University Info */}
             <div className="text-right">
               <h2 className="text-xl font-black text-slate-900 tracking-wide">
-                جامعة القدس المفتوحة
+                جامعة القدس المفتوحة — فرع الخليل
               </h2>
               <h3 className="text-sm font-bold text-qou-primary">
-                عمادة القبول والتسجيل والامتحانات
+                قسم الامتحانات
               </h3>
               <p className="text-xs text-slate-600 mt-1">
                 الفصل الدراسي: <strong className="text-slate-900 font-black">{semesterCode}</strong> | نوع الامتحان: <strong className="text-slate-900 font-black">{examType}</strong>

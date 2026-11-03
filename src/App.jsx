@@ -267,12 +267,11 @@ export default function App() {
       {/* Screen Footer (Hidden in Print) */}
       <footer className="no-print border-t border-slate-200 bg-white py-4 mt-8 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>نظام التوزيع الذكي لمراقبات الامتحانات — جامعة القدس المفتوحة</span>
+          <div>
+            جامعة القدس المفتوحة — فرع الخليل | المساعد الأكاديمي الدكتور مراد الجندي
           </div>
           <div>
-            مشروع: <strong>امتحان {activeProject.examType}</strong> | الفصل الدراسي: <strong>{activeProject.semesterCode}</strong>
+            إعداد وتصميم الموقع: الأستاذ أحمد النتشة | مشروع: <strong>امتحان {activeProject.examType}</strong> ({activeProject.semesterCode})
           </div>
         </div>
       </footer>

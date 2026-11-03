@@ -169,7 +169,8 @@ export function exportDistributedScheduleExcel(days, semesterCode, examType) {
   const rows = [];
 
   // Title header
-  rows.push(['جامعة القدس المفتوحة']);
+  rows.push(['جامعة القدس المفتوحة — فرع الخليل']);
+  rows.push(['قسم الامتحانات']);
   rows.push([`كشف توزيع مراقبي الامتحانات - الفصل الدراسي: ${semesterCode} - امتحان: ${examType}`]);
   rows.push([`تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')}`]);
   rows.push([]);
@@ -208,7 +209,8 @@ export function exportProctorsMatrixExcel(proctorStats, days, semesterCode, exam
   const wb = XLSX.utils.book_new();
   const rows = [];
 
-  rows.push(['جامعة القدس المفتوحة - مصفوفة تفريغ ومتابعة أنصبة المراقبين']);
+  rows.push(['جامعة القدس المفتوحة — فرع الخليل']);
+  rows.push(['قسم الامتحانات — مصفوفة تفريغ ومتابعة أنصبة المراقبين']);
   rows.push([`الفصل الدراسي: ${semesterCode} - الامتحان: ${examType}`]);
   rows.push([]);
 
