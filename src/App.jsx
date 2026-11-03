@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import LoginPage from './components/LoginPage';
 import ProjectsHub from './components/ProjectsHub';
 import Navbar from './components/Navbar';
