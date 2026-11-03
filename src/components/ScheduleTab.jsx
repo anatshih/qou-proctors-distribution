@@ -461,12 +461,12 @@ export default function ScheduleTab({
               <div className="overflow-x-auto border border-slate-200 rounded-2xl">
                 <table className="w-full text-right text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-100 text-slate-800 font-black border-b border-slate-300">
+                    <tr className="bg-slate-100 text-slate-800 font-black border-b border-slate-300 text-xs">
                       <th className="py-3 px-3 w-12 text-center border-l border-slate-200">#</th>
-                      <th className="py-3 px-4 border-l border-slate-200">اسم القاعة / المختبر / المدرج</th>
-                      <th className="py-3 px-4 w-40 text-center border-l border-slate-200">مرات الاستخدام في الجدول</th>
-                      <th className="py-3 px-4 w-44 text-center border-l border-slate-200">التصنيف الحالي</th>
-                      <th className="py-3 px-6 text-center">تحديد عدد المراقبين المطلوب لكل جلسة</th>
+                      <th className="py-3 px-4 min-w-[180px] border-l border-slate-200">اسم القاعة / المختبر / المدرج</th>
+                      <th className="py-3 px-4 min-w-[170px] text-center border-l border-slate-200 whitespace-nowrap">مرات الاستخدام في الجدول</th>
+                      <th className="py-3 px-5 min-w-[220px] text-center border-l border-slate-200 whitespace-nowrap">التصنيف الحالي للسعة</th>
+                      <th className="py-3 px-6 min-w-[270px] text-center whitespace-nowrap">تحديد عدد المراقبين المطلوب لكل جلسة</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -500,30 +500,33 @@ export default function ScheduleTab({
                                 }`}>
                                   <Building className="w-4 h-4" />
                                 </div>
-                                <span className="text-sm">قاعة {r.roomName}</span>
+                                <span className="text-sm font-black">قاعة {r.roomName}</span>
                               </div>
                             </td>
 
-                            <td className="py-3 px-4 text-center border-l border-slate-200 font-bold text-slate-600">
-                              <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-700 font-mono">
-                                مستخدمة في {r.appearances} جلسة
+                            <td className="py-3 px-4 text-center border-l border-slate-200 font-bold text-slate-600 whitespace-nowrap">
+                              <span className="bg-slate-100 px-3 py-1.5 rounded-xl text-slate-700 font-mono text-xs">
+                                مستخدمة في <strong>{r.appearances}</strong> جلسة
                               </span>
                             </td>
 
-                            <td className="py-3 px-4 text-center border-l border-slate-200">
+                            <td className="py-3 px-5 text-center border-l border-slate-200 whitespace-nowrap">
                               {cap === 1 && (
-                                <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold">
-                                  قاعة عادية (مراقب 1)
+                                <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 text-xs px-3.5 py-1.5 rounded-full font-bold whitespace-nowrap border border-slate-200">
+                                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                  <span>قاعة عادية (مراقب 1)</span>
                                 </span>
                               )}
                               {cap === 2 && (
-                                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs px-2.5 py-1 rounded-full font-black">
-                                  مدرج / مختبر (2 مراقبين)
+                                <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-900 border border-amber-300 text-xs px-3.5 py-1.5 rounded-full font-black whitespace-nowrap shadow-xs">
+                                  <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                                  <span>مدرج / مختبر (2 مراقبين)</span>
                                 </span>
                               )}
                               {cap === 3 && (
-                                <span className="bg-blue-100 text-blue-900 border border-blue-300 text-xs px-2.5 py-1 rounded-full font-black">
-                                  مدرج كبير جداً (3 مراقبين)
+                                <span className="inline-flex items-center gap-1.5 bg-blue-100 text-blue-900 border border-blue-300 text-xs px-3.5 py-1.5 rounded-full font-black whitespace-nowrap shadow-xs">
+                                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                  <span>مدرج كبير جداً (3 مراقبين)</span>
                                 </span>
                               )}
                             </td>
