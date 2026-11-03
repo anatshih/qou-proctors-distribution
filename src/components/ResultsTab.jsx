@@ -302,36 +302,6 @@ export default function ResultsTab({
     showToast(`✓ تم إلغاء التعيين وأصبحت القاعة شاغرة.`);
   };
 
-  const handleToggleCapacity = (dayIndex, sessionNumber, roomIndex, newCapacity) => {
-    if (!setScheduleDays) return;
-
-    setScheduleDays(prevDays => {
-      const copy = JSON.parse(JSON.stringify(prevDays));
-      const day = copy[dayIndex];
-      if (!day) return prevDays;
-      const session = (day.sessions || []).find(s => s.sessionNumber === sessionNumber);
-      if (!session || !session.rooms[roomIndex]) return prevDays;
-
-      const targetRoom = session.rooms[roomIndex];
-      targetRoom.capacity = newCapacity;
-
-      if (!Array.isArray(targetRoom.assignedProctors)) {
-        targetRoom.assignedProctors = targetRoom.proctor ? targetRoom.proctor.split('/').map(s => s.trim()) : [];
-      }
-
-      if (newCapacity === 1 && targetRoom.assignedProctors.length > 1) {
-        targetRoom.assignedProctors = [targetRoom.assignedProctors[0]];
-      } else if (newCapacity === 2 && targetRoom.assignedProctors.length < 2) {
-        targetRoom.assignedProctors.push('');
-      }
-
-      targetRoom.proctor = targetRoom.assignedProctors.filter(Boolean).join(' / ');
-      return copy;
-    });
-
-    showToast(`✓ تم ضبط سعة القاعة إلى (${newCapacity}) مراقبين`);
-  };
-
   return (
     <div className="space-y-6">
 
@@ -629,31 +599,17 @@ export default function ResultsTab({
                           <div className="font-extrabold text-slate-900 text-xs">
                             قاعة {item.room}
                           </div>
-                          {capacity > 1 ? (
-                            <div className="mt-1 flex flex-col items-center gap-0.5">
-                              <span className="inline-flex items-center gap-1 text-[10px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full font-bold border border-amber-300">
-                                <Users className="w-3 h-3 text-amber-700" />
-                                <span>مراقبَين (2)</span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleCapacity(item.dayIndex, item.sessionNumber, item.roomIndex, 1)}
-                                className="no-print text-[10px] text-slate-400 hover:text-rose-600 transition underline cursor-pointer"
-                                title="تحويل هذه القاعة إلى مراقب واحد فقط"
-                              >
-                                تحويل لـ 1 مراقب
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleCapacity(item.dayIndex, item.sessionNumber, item.roomIndex, 2)}
-                              className="no-print mt-1 inline-flex items-center gap-1 text-[10px] text-slate-600 hover:text-qou-primary bg-slate-100 hover:bg-emerald-50 px-2 py-0.5 rounded-full font-bold border border-slate-200 hover:border-emerald-300 transition cursor-pointer shadow-xs"
-                              title="انقر لتحديد أن هذه القاعة تحتاج إلى مراقبَين (2 مراقبين)"
-                            >
-                              <Plus className="w-3 h-3 text-emerald-600" />
-                              <span>+ إضافة مراقب 2</span>
-                            </button>
+                          {capacity === 2 && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full font-bold border border-amber-300 mt-1">
+                              <Users className="w-3 h-3 text-amber-700" />
+                              <span>مراقبَين (2)</span>
+                            </span>
+                          )}
+                          {capacity === 3 && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-full font-bold border border-blue-300 mt-1">
+                              <Users className="w-3 h-3 text-blue-700" />
+                              <span>3 مراقبين (3)</span>
+                            </span>
                           )}
                         </td>
 
@@ -815,7 +771,6 @@ export default function ResultsTab({
           onApplyReassign={handleApplyReassign}
           onApplySwap={handleApplySwap}
           onApplyClear={handleApplyClear}
-          onToggleCapacity={handleToggleCapacity}
         />
       )}
 

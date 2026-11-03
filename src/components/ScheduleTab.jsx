@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Upload, FileSpreadsheet, RotateCcw, CheckCircle, AlertCircle, 
-  Calendar, Building, Trash2, Printer, Eye, FileText, Check, Users
+  Calendar, Building, Trash2, Printer, Eye, FileText, Check, Users,
+  SlidersHorizontal, Search, Sparkles, Layers
 } from 'lucide-react';
 import { parseUploadedSchedule } from '../utils/excelHandler';
 
@@ -21,8 +22,13 @@ export default function ScheduleTab({
   const [successMsg, setSuccessMsg] = useState('');
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
-  // View mode: 'report' (printable audit review table) | 'cards' (interactive)
-  const [viewMode, setViewMode] = useState('report');
+  // View mode: 'capacities' (unified room capacity settings) | 'report' (printable audit review table) | 'cards' (interactive)
+  const [viewMode, setViewMode] = useState('capacities');
+
+  // Search & filter for unique rooms view
+  const [roomSearchTerm, setRoomSearchTerm] = useState('');
+  const [roomFilterCategory, setRoomFilterCategory] = useState('all'); // 'all' | 'single' | 'multi'
+  const [capacityToast, setCapacityToast] = useState('');
 
   // Recalculate total slots considering multi-proctor capacities
   const calcTotalSlots = (days) => {
@@ -45,7 +51,7 @@ export default function ScheduleTab({
       setUploadedFileName(result.fileName);
       setSuccessMsg(`تم بنجاح رفع وقراءة جدول القاعات: تم التعرف على ${result.days.length} يوماً و ${computedTotal} شاغر مراقبة.`);
       setSelectedDayIdx(0);
-      setViewMode('report');
+      setViewMode('capacities'); // Automatically direct user to room capacity settings!
     } catch (err) {
       setErrorMsg(err.message || 'حدث خطأ أثناء قراءة ملف الإكسل.');
     } finally {
@@ -72,24 +78,89 @@ export default function ScheduleTab({
     }
   };
 
-  // Toggle room capacity (1 -> 2 -> 1 proctors)
-  const handleToggleRoomCapacity = (dayIndex, sessionNumber, roomIndex) => {
+  // -------------------------------------------------------------
+  // Centralized Global Room Capacity Handler
+  // (Changes the capacity of a unique room across all sessions and days!)
+  // -------------------------------------------------------------
+  const handleSetRoomCapacityGlobally = (roomName, newCapacity) => {
     setScheduleDays(prev => {
       const copy = JSON.parse(JSON.stringify(prev));
-      const targetDay = copy[dayIndex];
-      if (!targetDay) return prev;
-      const targetSess = (targetDay.sessions || []).find(s => s.sessionNumber === sessionNumber);
-      if (!targetSess || !targetSess.rooms[roomIndex]) return prev;
-
-      const currentCap = Number(targetSess.rooms[roomIndex].capacity) || 1;
-      const newCap = currentCap === 1 ? 2 : 1;
-      targetSess.rooms[roomIndex].capacity = newCap;
+      copy.forEach(day => {
+        (day.sessions || []).forEach(sess => {
+          (sess.rooms || []).forEach(r => {
+            if (String(r.room || '').trim() === roomName) {
+              r.capacity = newCapacity;
+              if (Array.isArray(r.assignedProctors) && r.assignedProctors.length > newCapacity) {
+                r.assignedProctors = r.assignedProctors.slice(0, newCapacity);
+                r.proctor = r.assignedProctors.filter(Boolean).join(' / ');
+              }
+            }
+          });
+        });
+      });
 
       const newTotal = calcTotalSlots(copy);
       setTotalRoomSlots(newTotal);
       return copy;
     });
+
+    const label = newCapacity === 1 ? 'مراقب واحد (1)' : newCapacity === 2 ? 'مراقبَين (2)' : '3 مراقبين (3)';
+    setCapacityToast(`✓ تم بنجاح ضبط سعة قاعة (${roomName}) إلى [${label}] في كافة جلسات وأيام الامتحان.`);
+    setTimeout(() => setCapacityToast(''), 3500);
   };
+
+  // Extract unique rooms list across the entire exam period
+  const uniqueRoomsList = useMemo(() => {
+    if (!scheduleDays || scheduleDays.length === 0) return [];
+    const map = new Map();
+
+    scheduleDays.forEach(day => {
+      (day.sessions || []).forEach(sess => {
+        (sess.rooms || []).forEach(r => {
+          const roomName = String(r.room || '').trim();
+          if (!roomName) return;
+          const cap = Math.max(1, Number(r.capacity) || 1);
+
+          if (!map.has(roomName)) {
+            map.set(roomName, {
+              roomName,
+              appearances: 1,
+              capacity: cap
+            });
+          } else {
+            const item = map.get(roomName);
+            item.appearances += 1;
+            item.capacity = Math.max(item.capacity, cap);
+          }
+        });
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.capacity !== a.capacity) return b.capacity - a.capacity;
+      return a.roomName.localeCompare(b.roomName, 'ar', { numeric: true });
+    });
+  }, [scheduleDays]);
+
+  // Filtered unique rooms
+  const filteredUniqueRooms = useMemo(() => {
+    return uniqueRoomsList.filter(item => {
+      if (roomSearchTerm && !item.roomName.toLowerCase().includes(roomSearchTerm.toLowerCase())) {
+        return false;
+      }
+      if (roomFilterCategory === 'single' && item.capacity !== 1) return false;
+      if (roomFilterCategory === 'multi' && item.capacity <= 1) return false;
+      return true;
+    });
+  }, [uniqueRoomsList, roomSearchTerm, roomFilterCategory]);
+
+  // Capacity stats
+  const capacityStats = useMemo(() => {
+    const totalRooms = uniqueRoomsList.length;
+    const singleRooms = uniqueRoomsList.filter(r => r.capacity === 1).length;
+    const multiRooms = totalRooms - singleRooms;
+    return { totalRooms, singleRooms, multiRooms };
+  }, [uniqueRoomsList]);
 
   const handlePrintReview = () => {
     window.print();
@@ -100,6 +171,14 @@ export default function ScheduleTab({
 
   return (
     <div className="space-y-6">
+
+      {/* Realtime Toast for capacity changes */}
+      {capacityToast && (
+        <div className="no-print fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-emerald-800 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-emerald-600 animate-in fade-in slide-in-from-top-4">
+          <CheckCircle className="w-4 h-4 text-emerald-300 flex-shrink-0" />
+          <span>{capacityToast}</span>
+        </div>
+      )}
 
       {/* Top Banner: Upload & Status */}
       <div className="no-print grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -143,7 +222,7 @@ export default function ScheduleTab({
           {uploadedFileName && (
             <div className="mt-3 text-xs text-emerald-800 bg-emerald-50 px-3.5 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1.5 font-bold">
               <CheckCircle className="w-4 h-4 text-emerald-600" />
-              <span>الملف المفحوص والمرفوع: <strong>{uploadedFileName}</strong></span>
+              <span>الملف الحالي: <strong>{uploadedFileName}</strong></span>
             </div>
           )}
         </div>
@@ -166,10 +245,20 @@ export default function ScheduleTab({
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="text-xs text-slate-600 flex items-center gap-1.5">
                   <Building className="w-3.5 h-3.5 text-slate-400" />
-                  إجمالي شواغر المراقبين:
+                  القاعات الفريدة:
+                </span>
+                <span className="font-bold text-slate-800">
+                  {hasSchedule ? `${uniqueRoomsList.length} قاعة مميزة` : '0'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <span className="text-xs text-slate-600 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-slate-400" />
+                  إجمالي شواغر المراقبة:
                 </span>
                 <span className="font-black text-qou-primary text-base">
-                  {hasSchedule ? `${totalRoomSlots} شاغر` : '0 قاعة'}
+                  {hasSchedule ? `${totalRoomSlots} شاغر` : '0 شاغر'}
                 </span>
               </div>
             </div>
@@ -180,7 +269,7 @@ export default function ScheduleTab({
               <button
                 type="button"
                 onClick={handleClearSchedule}
-                className="w-full text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl py-2.5 transition flex items-center justify-center gap-2"
+                className="w-full text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl py-2.5 transition flex items-center justify-center gap-2 cursor-pointer"
                 title="تفريغ القاعات بالكامل لإعادة رفع ملف جديد"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -204,9 +293,19 @@ export default function ScheduleTab({
         </div>
       )}
       {successMsg && (
-        <div className="no-print p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successMsg}</span>
+        <div className="no-print p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs flex items-center justify-between gap-2 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setViewMode('capacities')}
+            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl transition shadow-xs flex items-center gap-1 cursor-pointer"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>ضبط سعات القاعات (1 أو 2 أو 3)</span>
+          </button>
         </div>
       )}
 
@@ -214,59 +313,285 @@ export default function ScheduleTab({
       {hasSchedule ? (
         <div className="space-y-4">
           
-          {/* Controls Bar */}
+          {/* Controls Bar & View Mode Toggle */}
           <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-qou-primary" />
-              <span className="font-extrabold text-sm text-slate-800">طريقة عرض القاعات:</span>
+              <Building className="w-4 h-4 text-qou-primary" />
+              <span className="font-extrabold text-sm text-slate-800">إدارة القاعات والمراقبات:</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Multi-Proctor Tip */}
-              <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl font-medium hidden sm:flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                <span>انقر على أي قاعة لتحديد حاجتها لمراقبَين (2 مراقبين)</span>
-              </div>
-
-              {/* View Mode Toggle */}
+              {/* View Mode Switcher */}
               <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
+                
+                {/* Mode 1: Centralized Capacities (The Star Feature!) */}
+                <button
+                  type="button"
+                  onClick={() => setViewMode('capacities')}
+                  className={`px-3 py-2 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                    viewMode === 'capacities' 
+                      ? 'bg-qou-primary text-white shadow-sm font-black' 
+                      : 'hover:text-slate-900'
+                  }`}
+                  title="مكان موحد لتحديد عدد المراقبين لكل قاعة في جميع فترات الامتحان"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>ضبط سعات القاعات (1 / 2 / 3 مراقبين)</span>
+                  {capacityStats.multiRooms > 0 && (
+                    <span className="bg-amber-400 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-black">
+                      {capacityStats.multiRooms}
+                    </span>
+                  )}
+                </button>
+
+                {/* Mode 2: Audit Review Report */}
                 <button
                   type="button"
                   onClick={() => setViewMode('report')}
-                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
-                    viewMode === 'report' ? 'bg-white text-slate-900 shadow-sm' : ''
+                  className={`px-3 py-2 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                    viewMode === 'report' ? 'bg-white text-slate-900 shadow-sm font-black' : 'hover:text-slate-900'
                   }`}
+                  title="كشف مراجعة وتدقيق القاعات والجلسات يوماً بيوم"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>تقرير المراجعة والتدقيق</span>
+                  <span>كشف المراجعة والتدقيق</span>
                 </button>
+
+                {/* Mode 3: Interactive Cards */}
                 <button
                   type="button"
                   onClick={() => setViewMode('cards')}
-                  className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
-                    viewMode === 'cards' ? 'bg-white text-slate-900 shadow-sm' : ''
+                  className={`px-3 py-2 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                    viewMode === 'cards' ? 'bg-white text-slate-900 shadow-sm font-black' : 'hover:text-slate-900'
                   }`}
+                  title="استعراض القاعات يوم بيوم وبطاقات الجلسات"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   <span>استعراض البطاقات</span>
                 </button>
               </div>
 
-              {/* Print Review Report Button */}
-              <button
-                type="button"
-                onClick={handlePrintReview}
-                className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
-                title="طباعة كشف مراجعة وتدقيق القاعات والجلسات"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>طباعة تقرير مراجعة القاعات</span>
-              </button>
+              {/* Print Review Report Button (Active for report view) */}
+              {viewMode === 'report' && (
+                <button
+                  type="button"
+                  onClick={handlePrintReview}
+                  className="bg-qou-primary hover:bg-qou-dark text-white text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  title="طباعة كشف مراجعة وتدقيق القاعات والجلسات"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>طباعة تقرير التدقيق</span>
+                </button>
+              )}
             </div>
           </div>
 
           {/* ========================================================
-              VIEW 1: FORMAL AUDIT & REVIEW REPORT (PRINTABLE)
+              VIEW 1: CENTRALIZED ROOM CAPACITIES SETTINGS (1, 2, 3 PROCTORS)
+             ======================================================== */}
+          {viewMode === 'capacities' && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+              
+              {/* Informative Guidance Banner */}
+              <div className="bg-gradient-to-l from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div className="text-xs text-slate-700 space-y-1">
+                  <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                    <span>التحكم الموحد في سعات القاعات (لكافة أيام وفترات الامتحان)</span>
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                      بدون تشتيت
+                    </span>
+                  </h4>
+                  <p className="leading-relaxed">
+                    جميع القاعات تم ضبطها تلقائياً على <strong>(مراقب واحد 1)</strong>. فقط حدد المدرجات والمختبرات الكبيرة إلى <strong>(2 مراقبين)</strong> أو <strong>(3 مراقبين)</strong>، وسيتم تطبيق ذلك تلقائياً على <strong>جميع جلسات تلك القاعة عبر كل أيام الامتحان</strong> بضغطة زر واحدة!
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+                  <input
+                    type="text"
+                    placeholder="ابحث عن قاعة أو مدرج أو مختبر..."
+                    value={roomSearchTerm}
+                    onChange={(e) => setRoomSearchTerm(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-10 pl-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-qou-primary/20"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() => setRoomFilterCategory('all')}
+                      className={`px-3 py-1.5 rounded-lg transition ${
+                        roomFilterCategory === 'all' ? 'bg-white text-slate-900 shadow-sm' : ''
+                      }`}
+                    >
+                      الكل ({uniqueRoomsList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoomFilterCategory('single')}
+                      className={`px-3 py-1.5 rounded-lg transition ${
+                        roomFilterCategory === 'single' ? 'bg-white text-slate-900 shadow-sm' : ''
+                      }`}
+                    >
+                      مراقب واحد ({capacityStats.singleRooms})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoomFilterCategory('multi')}
+                      className={`px-3 py-1.5 rounded-lg transition ${
+                        roomFilterCategory === 'multi' ? 'bg-white text-slate-900 shadow-sm' : ''
+                      }`}
+                    >
+                      2 أو 3 مراقبين ({capacityStats.multiRooms})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Unique Rooms Capacity Table */}
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                <table className="w-full text-right text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-800 font-black border-b border-slate-300">
+                      <th className="py-3 px-3 w-12 text-center border-l border-slate-200">#</th>
+                      <th className="py-3 px-4 border-l border-slate-200">اسم القاعة / المختبر / المدرج</th>
+                      <th className="py-3 px-4 w-40 text-center border-l border-slate-200">مرات الاستخدام في الجدول</th>
+                      <th className="py-3 px-4 w-44 text-center border-l border-slate-200">التصنيف الحالي</th>
+                      <th className="py-3 px-6 text-center">تحديد عدد المراقبين المطلوب لكل جلسة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {filteredUniqueRooms.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="py-8 text-center text-slate-400 font-bold">
+                          لا توجد قاعات مطابقة لبحثك.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredUniqueRooms.map((r, idx) => {
+                        const cap = r.capacity;
+
+                        return (
+                          <tr 
+                            key={r.roomName} 
+                            className={`hover:bg-slate-50/80 transition-colors ${
+                              cap > 1 ? 'bg-amber-50/40' : ''
+                            }`}
+                          >
+                            <td className="py-3 px-3 text-center text-slate-400 font-mono border-l border-slate-200">
+                              {idx + 1}
+                            </td>
+
+                            <td className="py-3 px-4 font-black text-slate-900 border-l border-slate-200">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
+                                  cap === 1 ? 'bg-slate-100 text-slate-700' :
+                                  cap === 2 ? 'bg-amber-100 text-amber-800' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}>
+                                  <Building className="w-4 h-4" />
+                                </div>
+                                <span className="text-sm">قاعة {r.roomName}</span>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4 text-center border-l border-slate-200 font-bold text-slate-600">
+                              <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-700 font-mono">
+                                مستخدمة في {r.appearances} جلسة
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4 text-center border-l border-slate-200">
+                              {cap === 1 && (
+                                <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold">
+                                  قاعة عادية (مراقب 1)
+                                </span>
+                              )}
+                              {cap === 2 && (
+                                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs px-2.5 py-1 rounded-full font-black">
+                                  مدرج / مختبر (2 مراقبين)
+                                </span>
+                              )}
+                              {cap === 3 && (
+                                <span className="bg-blue-100 text-blue-900 border border-blue-300 text-xs px-2.5 py-1 rounded-full font-black">
+                                  مدرج كبير جداً (3 مراقبين)
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Capacity Action Buttons: 1, 2, or 3 */}
+                            <td className="py-3 px-6 text-center">
+                              <div className="inline-flex bg-slate-100 p-1 rounded-xl gap-1">
+                                
+                                {/* 1 Proctor */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetRoomCapacityGlobally(r.roomName, 1)}
+                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                                    cap === 1
+                                      ? 'bg-white text-slate-900 shadow-sm font-black border border-slate-200'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                                  }`}
+                                  title="تحديد مراقب واحد لهذه القاعة في جميع الجلسات"
+                                >
+                                  {cap === 1 && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                                  <span>1 مراقب</span>
+                                </button>
+
+                                {/* 2 Proctors */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetRoomCapacityGlobally(r.roomName, 2)}
+                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                                    cap === 2
+                                      ? 'bg-amber-500 text-white shadow-sm font-black'
+                                      : 'text-slate-600 hover:text-amber-800 hover:bg-amber-100/50'
+                                  }`}
+                                  title="تحديد 2 مراقبين لهذه القاعة في جميع الجلسات"
+                                >
+                                  {cap === 2 && <Check className="w-3.5 h-3.5 text-white" />}
+                                  <span>2 مراقبين</span>
+                                </button>
+
+                                {/* 3 Proctors */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetRoomCapacityGlobally(r.roomName, 3)}
+                                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                                    cap === 3
+                                      ? 'bg-blue-600 text-white shadow-sm font-black'
+                                      : 'text-slate-600 hover:text-blue-800 hover:bg-blue-100/50'
+                                  }`}
+                                  title="تحديد 3 مراقبين للمدرجات الكبيرة في جميع الجلسات"
+                                >
+                                  {cap === 3 && <Check className="w-3.5 h-3.5 text-white" />}
+                                  <span>3 مراقبين</span>
+                                </button>
+
+                              </div>
+                            </td>
+
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================
+              VIEW 2: FORMAL AUDIT & REVIEW REPORT (PRINTABLE)
              ======================================================== */}
           {viewMode === 'report' && (
             <div className="print-area bg-white rounded-3xl border border-slate-200 p-6 lg:p-8 shadow-sm space-y-6">
@@ -298,21 +623,21 @@ export default function ScheduleTab({
                   <div className="text-left text-xs text-slate-500 space-y-1">
                     <div>التاريخ: <strong>{new Date().toLocaleDateString('ar-EG')}</strong></div>
                     <div>إجمالي الأيام: <strong>{scheduleDays.length} يوماً</strong></div>
-                    <div>شواغر المراقبين المطلوبة: <strong className="text-qou-primary font-bold">{totalRoomSlots} شاغر</strong></div>
+                    <div>إجمالي الشواغر: <strong>{totalRoomSlots} شاغر مراقبة</strong></div>
                   </div>
                 </div>
               </div>
 
-              {/* Comprehensive Review Table */}
+              {/* Printable Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-100 text-slate-800 font-black border-y-2 border-slate-300">
                       <th className="py-2.5 px-3 w-12 text-center border-l border-slate-200">#</th>
-                      <th className="py-2.5 px-3 w-40 border-l border-slate-200">اليوم والتاريخ</th>
-                      <th className="py-2.5 px-3 w-24 text-center border-l border-slate-200">رقم الجلسة</th>
-                      <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">شواغر الجلسة</th>
-                      <th className="py-2.5 px-4 border-l border-slate-200">أرقام القاعات المفتوحة (انقر لتحديد 2 مراقبين)</th>
+                      <th className="py-2.5 px-3 border-l border-slate-200">اليوم والتاريخ</th>
+                      <th className="py-2.5 px-3 w-24 text-center border-l border-slate-200">الجلسة</th>
+                      <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">المراقبين المطلوبين</th>
+                      <th className="py-2.5 px-4 border-l border-slate-200">أرقام القاعات وسعاتها المعتمدة</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -326,25 +651,21 @@ export default function ScheduleTab({
 
                         return (
                           <tr key={`${dIdx}_${sIdx}`} className="hover:bg-slate-50 transition">
-                            {/* Sequential numbering */}
                             <td className="py-2 px-3 text-center text-slate-400 font-mono border-l border-slate-200">
                               {dIdx + 1}.{sIdx + 1}
                             </td>
 
-                            {/* Day and Date explicitly on every row */}
                             <td className="py-2 px-3 font-bold text-slate-800 border-l border-slate-200">
                               <div className="text-slate-900 font-extrabold">{day.dayName}</div>
                               <div className="text-[11px] font-mono text-slate-600 font-semibold">{day.date}</div>
                             </td>
 
-                            {/* Session Number */}
                             <td className="py-2 px-3 text-center border-l border-slate-200">
                               <span className="font-black bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded border border-slate-200">
                                 جلسة {sess.sessionNumber}
                               </span>
                             </td>
 
-                            {/* Rooms / Proctors count in session */}
                             <td className="py-2 px-3 text-center font-bold text-qou-primary border-l border-slate-200">
                               {sessRequiredProctors} مراقب
                               <span className="text-[10px] text-slate-400 block font-normal">
@@ -352,7 +673,6 @@ export default function ScheduleTab({
                               </span>
                             </td>
 
-                            {/* Formatted Rooms List with Clickable Multi-Proctor Badge */}
                             <td className="py-2 px-4 border-l border-slate-200">
                               <div className="flex flex-wrap gap-1.5 items-center">
                                 {(sess.rooms || []).map((r, rIdx) => {
@@ -360,28 +680,28 @@ export default function ScheduleTab({
                                   const isMulti = cap > 1;
 
                                   return (
-                                    <button
+                                    <span
                                       key={rIdx}
-                                      type="button"
-                                      onClick={() => handleToggleRoomCapacity(dIdx, sess.sessionNumber, rIdx)}
-                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition border cursor-pointer ${
-                                        isMulti
-                                          ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-sm'
-                                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border ${
+                                        cap === 2
+                                          ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
+                                          : cap === 3
+                                          ? 'bg-blue-100 text-blue-900 border-blue-300 shadow-xs'
+                                          : 'bg-slate-100 text-slate-700 border-slate-200'
                                       }`}
-                                      title="انقر للتبديل بين (مراقب واحد [1]) أو (مراقبَين [2]) لهذه القاعة"
                                     >
                                       <span>قاعة {r.room}</span>
-                                      {isMulti ? (
+                                      {cap === 2 && (
                                         <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-sans font-bold">
                                           2 مراقبين
                                         </span>
-                                      ) : (
-                                        <span className="text-[10px] text-slate-400 no-print">
-                                          (1)
+                                      )}
+                                      {cap === 3 && (
+                                        <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-sans font-bold">
+                                          3 مراقبين
                                         </span>
                                       )}
-                                    </button>
+                                    </span>
                                   );
                                 })}
                               </div>
@@ -413,7 +733,7 @@ export default function ScheduleTab({
           )}
 
           {/* ========================================================
-              VIEW 2: INTERACTIVE CARDS
+              VIEW 3: INTERACTIVE CARDS
              ======================================================== */}
           {viewMode === 'cards' && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
@@ -433,7 +753,7 @@ export default function ScheduleTab({
                       key={idx}
                       type="button"
                       onClick={() => setSelectedDayIdx(idx)}
-                      className={`p-3 rounded-2xl border text-right transition-all flex-shrink-0 min-w-[130px] ${
+                      className={`p-3 rounded-2xl border text-right transition-all flex-shrink-0 min-w-[130px] cursor-pointer ${
                         isSelected
                           ? 'border-qou-primary bg-emerald-50/70 shadow-sm'
                           : 'border-slate-200 bg-white hover:border-slate-300'
@@ -481,27 +801,30 @@ export default function ScheduleTab({
                         <div className="flex flex-wrap gap-1.5">
                           {(sess.rooms || []).map((r, rIdx) => {
                             const cap = Math.max(1, Number(r.capacity) || 1);
-                            const isMulti = cap > 1;
 
                             return (
-                              <button
+                              <span
                                 key={rIdx}
-                                type="button"
-                                onClick={() => handleToggleRoomCapacity(selectedDayIdx, sess.sessionNumber, rIdx)}
-                                className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 cursor-pointer ${
-                                  isMulti
-                                    ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-sm'
-                                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-white'
+                                className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
+                                  cap === 2
+                                    ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
+                                    : cap === 3
+                                    ? 'bg-blue-100 text-blue-900 border-blue-300 shadow-xs'
+                                    : 'bg-slate-100 text-slate-700 border-slate-200'
                                 }`}
-                                title="انقر للتبديل بين 1 و 2 مراقبين لهذه القاعة"
                               >
                                 <span>قاعة {r.room}</span>
-                                {isMulti && (
+                                {cap === 2 && (
                                   <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
                                     2 مراقبين
                                   </span>
                                 )}
-                              </button>
+                                {cap === 3 && (
+                                  <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                                    3 مراقبين
+                                  </span>
+                                )}
+                              </span>
                             );
                           })}
                         </div>
@@ -522,7 +845,7 @@ export default function ScheduleTab({
           </div>
           <h3 className="font-black text-slate-800 text-base">لا توجد قاعات محملة في هذا المشروع حالياً</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            القاعات فارغة ومهيأة للفحص. يرجى سحب وإفلات ملف الإكسل في الصندوق أعلاه لتحميل القاعات والجلسات واستعراض تقرير التدقيق.
+            القاعات فارغة ومهيأة للفحص. يرجى سحب وإفلات ملف الإكسل في الصندوق أعلاه لتحميل القاعات والجلسات وضبط سعات المدرجات بضغطة زر واحدة.
           </p>
         </div>
       )}

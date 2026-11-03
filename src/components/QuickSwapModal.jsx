@@ -12,12 +12,11 @@ export default function QuickSwapModal({
   proctors,
   onApplyReassign,
   onApplySwap,
-  onApplyClear,
-  onToggleCapacity
+  onApplyClear
 }) {
   if (!isOpen || !slotData) return null;
 
-  const [activeSubTab, setActiveSubTab] = useState('swap'); // 'swap' | 'roster' | 'room'
+  const [activeSubTab, setActiveSubTab] = useState('swap'); // 'swap' | 'roster'
   const [searchTerm, setSearchTerm] = useState('');
   const [rosterFilter, setRosterFilter] = useState('available'); // 'available' | 'all' | 'exceptions'
   const [confirmWarning, setConfirmWarning] = useState(null); // { type: 'exception' | 'conflict', proctorName, proceedFn }
@@ -229,16 +228,6 @@ export default function QuickSwapModal({
     onClose();
   };
 
-  const handleToggleRoomCapacity = (newCap) => {
-    onToggleCapacity(
-      slotData.dayIndex,
-      slotData.sessionNumber,
-      slotData.roomIndex,
-      newCap
-    );
-    onClose();
-  };
-
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div 
@@ -356,19 +345,6 @@ export default function QuickSwapModal({
           >
             <Users className="w-4 h-4" />
             <span>اختيار مراقب بديل من القائمة</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveSubTab('room'); setConfirmWarning(null); }}
-            className={`py-3 px-4 text-xs font-extrabold flex items-center gap-2 border-b-2 transition ${
-              activeSubTab === 'room' 
-                ? 'border-qou-primary text-qou-primary' 
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Building className="w-4 h-4" />
-            <span>سعة القاعة (1 أو 2)</span>
           </button>
         </div>
 
@@ -568,49 +544,6 @@ export default function QuickSwapModal({
                   لا يوجد مراقب مطابق للبحث والفلاتر.
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3 Content: Room Capacity Management */}
-        {activeSubTab === 'room' && (
-          <div className="p-5 overflow-y-auto flex-1 space-y-4">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-              <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
-                <Building className="w-4 h-4 text-qou-primary" />
-                <span>التحكم في سعة قاعة {slotData.roomName} (عدد المراقبين المطلوبة):</span>
-              </h4>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                يمكنك تحديد ما إذا كانت هذه القاعة تحتاج لمراقب واحد (القاعات العادية) أو مراقبَين (المدرجات والمختبرات الكبيرة).
-              </p>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => handleToggleRoomCapacity(1)}
-                  className={`p-3 rounded-2xl border-2 text-center transition cursor-pointer ${
-                    slotData.capacity === 1
-                      ? 'border-qou-primary bg-emerald-50/50 text-qou-primary font-black shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 font-bold'
-                  }`}
-                >
-                  <div className="text-sm font-black mb-1">مراقب واحد (1)</div>
-                  <div className="text-[11px] text-slate-500">للقاعات الدراسية القياسية</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleToggleRoomCapacity(2)}
-                  className={`p-3 rounded-2xl border-2 text-center transition cursor-pointer ${
-                    slotData.capacity === 2
-                      ? 'border-qou-primary bg-emerald-50/50 text-qou-primary font-black shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 font-bold'
-                  }`}
-                >
-                  <div className="text-sm font-black mb-1">مراقبَين (2 مراقبين)</div>
-                  <div className="text-[11px] text-slate-500">للمدرجات ومختبرات الحاسوب الكبيرة</div>
-                </button>
-              </div>
             </div>
           </div>
         )}
