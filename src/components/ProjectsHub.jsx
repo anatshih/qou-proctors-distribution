@@ -271,7 +271,11 @@ export default function ProjectsHub({
                   <div className="flex items-center justify-between pt-5 mt-5 border-t border-slate-100">
                     <button
                       type="button"
-                      className="bg-qou-primary group-hover:bg-qou-dark text-white text-xs font-black px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenProject(project.id);
+                      }}
+                      className="bg-qou-primary group-hover:bg-qou-dark text-white text-xs font-black px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
                     >
                       <span>فتح ومتابعة المشروع</span>
                       <ArrowLeft className="w-3.5 h-3.5" />

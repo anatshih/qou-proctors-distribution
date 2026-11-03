@@ -119,6 +119,29 @@ export default function App() {
   // Find currently active project
   const activeProject = projects.find(p => p.id === activeProjectId) || null;
 
+  // Workflow stats for the active project (Must be declared before any conditional return!)
+  const workflowStats = useMemo(() => {
+    if (!activeProject) return null;
+    const days = activeProject.scheduleDays || [];
+    const hasSchedule = days.length > 0;
+    const totalSlots = activeProject.totalRoomSlots || 0;
+    
+    const activeProctors = (activeProject.proctors || []).filter(p => p.isActive);
+    const totalQuotas = activeProctors.reduce((sum, p) => sum + (Number(p.quota) || 0), 0);
+    const isQuotaMatched = hasSchedule && totalSlots > 0 && totalQuotas === totalSlots;
+    const isDistributed = Boolean(activeProject.distributionResult && activeProject.distributionResult.isSuccess);
+
+    return {
+      hasSchedule,
+      daysCount: days.length,
+      totalSlots,
+      totalQuotas,
+      activeProctorsCount: activeProctors.length,
+      isQuotaMatched,
+      isDistributed
+    };
+  }, [activeProject]);
+
   // Helper to update fields of the active project
   const updateActiveProject = (updater) => {
     if (!activeProjectId) return;
@@ -172,29 +195,6 @@ export default function App() {
       </>
     );
   }
-
-  // Workflow stats for the active project
-  const workflowStats = useMemo(() => {
-    if (!activeProject) return null;
-    const days = activeProject.scheduleDays || [];
-    const hasSchedule = days.length > 0;
-    const totalSlots = activeProject.totalRoomSlots || 0;
-    
-    const activeProctors = (activeProject.proctors || []).filter(p => p.isActive);
-    const totalQuotas = activeProctors.reduce((sum, p) => sum + (Number(p.quota) || 0), 0);
-    const isQuotaMatched = hasSchedule && totalSlots > 0 && totalQuotas === totalSlots;
-    const isDistributed = Boolean(activeProject.distributionResult && activeProject.distributionResult.isSuccess);
-
-    return {
-      hasSchedule,
-      daysCount: days.length,
-      totalSlots,
-      totalQuotas,
-      activeProctorsCount: activeProctors.length,
-      isQuotaMatched,
-      isDistributed
-    };
-  }, [activeProject]);
 
   // When inside an open project:
   return (
