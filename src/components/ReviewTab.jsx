@@ -596,10 +596,11 @@ export default function ReviewTab({
                                   const pQuota = Number(p.quota) || 0;
                                   const hasConflict = currentProctorsInSession.has(p.name) && p.name !== slot.assignedProctor;
                                   const isOver = pQuota > 0 && count >= pQuota;
+                                  const isAdmin = (p.type || 'academic') === 'administrative';
 
-                                  let labelSuffix = `(${count}/${pQuota})`;
+                                  let labelSuffix = isAdmin ? `(${count}/سقف ${pQuota})` : `(${count}/${pQuota})`;
                                   if (hasConflict) labelSuffix += ' ⛔ مشغول بالجلسة';
-                                  else if (isOver) labelSuffix += ' ⭐ إضافي فوق الرصيد';
+                                  else if (isOver) labelSuffix += isAdmin ? ' ⭐ فوق السقف' : ' ⭐ إضافي فوق الرصيد';
 
                                   return (
                                     <option 

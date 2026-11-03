@@ -701,7 +701,7 @@ export default function ResultsTab({
                   <th className="py-2.5 px-4 border-l border-slate-200">اسم المراقب</th>
                   <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">التصنيف</th>
                   <th className="py-2.5 px-3 w-24 text-center border-l border-slate-200">الحالة</th>
-                  <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">النصاب المطلوب</th>
+                  <th className="py-2.5 px-3 w-32 text-center border-l border-slate-200">النصاب الأكاديمي / السقف الإداري</th>
                   <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">المنفذ فعلياً</th>
                   <th className="py-2.5 px-3 w-28 text-center border-l border-slate-200">الفرق والتطابق</th>
                 </tr>
@@ -748,12 +748,18 @@ export default function ResultsTab({
                           <span className="text-slate-400 font-normal">احتياط</span>
                         ) : isComplete ? (
                           <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px] border border-emerald-200">
-                            مستوفى 100%
+                            {(p.type || 'academic') === 'administrative' ? 'مستوفى السقف 100%' : 'مستوفى العقد 100%'}
                           </span>
                         ) : isUnder ? (
-                          <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-[11px] border border-amber-200">
-                            نقص {quota - assigned}
-                          </span>
+                          (p.type || 'academic') === 'administrative' ? (
+                            <span className="text-emerald-700 bg-emerald-50/70 px-2 py-0.5 rounded text-[11px] border border-emerald-200" title="سقف أقصى تم توزيعه بعدالة">
+                              ✓ استيفاء عادل (دون السقف بـ {quota - assigned})
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-[11px] border border-amber-200">
+                              متبقي من النصاب {quota - assigned}
+                            </span>
+                          )
                         ) : (
                           <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
                             زيادة {assigned - quota}

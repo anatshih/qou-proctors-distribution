@@ -226,11 +226,12 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
     const assigned = matched ? matched.assignedCount : 0;
     const assignments = matched ? matched.assignments : [];
     const quota = Number(original.quota) || 0;
+    const type = original.type === 'administrative' ? 'administrative' : 'academic';
 
     return {
       id: original.id,
       name: original.name,
-      type: original.type === 'administrative' ? 'administrative' : 'academic',
+      type,
       excludeSession3: Boolean(original.excludeSession3),
       preferredPair: original.preferredPair || 'any',
       isActive: original.isActive,
@@ -238,7 +239,8 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       assignedCount: assigned,
       difference: assigned - quota,
       assignments,
-      completionRate: quota > 0 ? Math.round((assigned / quota) * 100) : 0
+      completionRate: quota > 0 ? Math.round((assigned / quota) * 100) : 0,
+      isCeiling: type === 'administrative'
     };
   });
 
@@ -270,6 +272,10 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
 
 /**
  * Heuristic scoring calculation for candidates
+ * Enforces:
+ * 1. Mandatory Academic Contract Obligation: Academics have priority to fulfill 100% of their quota.
+ * 2. Administrative Ceiling & Fair Balancing: Administrative quota is a MAXIMUM CEILING, distributed
+ *    with strict equality so all administrators carry a balanced, fair proportion of their ceiling.
  */
 function calculateCandidateScore(candidate, dayDate, sessionNum) {
   let score = 0;
@@ -278,42 +284,40 @@ function calculateCandidateScore(candidate, dayDate, sessionNum) {
   const remainingQuota = candidate.quota - candidate.assignedCount;
   const progressRatio = candidate.quota > 0 ? (candidate.assignedCount / candidate.quota) : 1;
 
-  // 1. Quota Progress Priority (Highest weight to keep all staff progressing evenly)
-  score += (1 - progressRatio) * 15000;
-  score += (remainingQuota * 150);
-
-  // 2. Academic Contract Load Priority (+3,000 pts)
+  // 1. Mandatory Academic Contract Load Priority (+25,000 pts)
+  // Ensures academics are given absolute priority to fulfill 100% of their teaching contract quota
   if (candidate.type === 'academic') {
-    score += 3000;
-  }
+    score += 25000;
+    score += (1 - progressRatio) * 12000;
+    score += (remainingQuota * 150);
 
-  // 3. Consecutive Session Pairing Bonus (+12,000 pts)
-  // Favors (1 + 2) or (2 + 3) continuous assignments
-  if (sessionNum === 2 && todaySessions.has(1)) {
-    score += 12000;
-  }
-  if (sessionNum === 3 && todaySessions.has(2)) {
-    score += 12000;
-  }
+    // Consecutive pairing bonus (+12,000 pts)
+    if (sessionNum === 2 && todaySessions.has(1)) {
+      score += 12000;
+    }
+    if (sessionNum === 3 && todaySessions.has(2)) {
+      score += 12000;
+    }
+  } else {
+    // 2. Administrative Staff: Quota is a MAXIMUM CEILING, distributed with strict fairness
+    // Administrators progress together in parallel (balanced percentage of ceiling)
+    score += (1 - progressRatio) * 18000; // Strong balancing weight among administrators
+    score += (remainingQuota * 100);
 
-  // 4. Administrative Staff: Full-day presence flexibility
-  // Administrative staff are on campus full time, so giving them 1 session per day is natural,
-  // and (Session 1 + Session 3) is completely allowed as they work in their offices during Session 2.
-  if (candidate.type === 'administrative') {
     if (todayCount === 0) {
-      score += 2000; // Natural steady daily presence across the schedule
+      score += 2500; // Natural steady daily presence across the schedule
     }
     if (sessionNum === 3 && todaySessions.has(1)) {
-      score += 5000; // Encourages filling session 3 without idle penalty
+      score += 5000; // 1+3 session is completely allowed for administrators
     }
   }
 
-  // 5. Emergency 3rd Session Demotion (Academics only, last resort)
+  // 3. Emergency 3rd Session Demotion (Academics only, last resort)
   if (todayCount >= 2) {
-    score -= 30000;
+    score -= 40000;
   }
 
-  // 6. Preferred Pair Respect
+  // 4. Preferred Pair Respect
   if (candidate.preferredPair === '1-2') {
     if (sessionNum === 1 || sessionNum === 2) score += 3000;
     if (sessionNum === 3) score -= 8000;

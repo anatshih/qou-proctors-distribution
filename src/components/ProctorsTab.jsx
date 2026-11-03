@@ -338,16 +338,16 @@ export default function ProctorsTab({
               onChange={(e) => setNewProctorType(e.target.value)}
               className="text-xs font-bold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-qou-primary text-slate-800"
             >
-              <option value="academic">🎓 كادر أكاديمي (أولوية العبء)</option>
-              <option value="administrative">💼 كادر إداري (إسناد)</option>
+              <option value="academic">🎓 كادر أكاديمي (نصاب تعاقدي ملزم)</option>
+              <option value="administrative">💼 كادر إداري (سقف أقصى مساند)</option>
             </select>
 
             <input
               type="number"
-              placeholder="النصاب المطلوب (مثلاً: 12)"
+              placeholder="النصاب / السقف الأعلى"
               value={newProctorQuota}
               onChange={(e) => setNewProctorQuota(e.target.value)}
-              className="w-40 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-qou-primary"
+              className="w-44 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-qou-primary"
               min="0"
             />
 
@@ -376,7 +376,7 @@ export default function ProctorsTab({
                 <th className="py-3 px-4">اسم المراقب</th>
                 <th className="py-3 px-3 w-36 text-center">التصنيف (أكاديمي / إداري)</th>
                 <th className="py-3 px-3 w-28 text-center">الحالة للدورة</th>
-                <th className="py-3 px-3 w-36 text-center">العبء / النصاب المطلوب</th>
+                <th className="py-3 px-3 w-40 text-center">النصاب الأكاديمي / السقف الإداري</th>
                 <th className="py-3 px-3 w-48 text-center">الاستثناءات والتفضيلات</th>
                 <th className="py-3 px-3 w-16 text-center">حذف</th>
               </tr>
@@ -440,22 +440,22 @@ export default function ProctorsTab({
                         <button
                           type="button"
                           onClick={() => handleToggleType(proctor.id)}
-                          className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center justify-center gap-1.5 mx-auto border cursor-pointer shadow-xs ${
+                          className={`text-xs px-2.5 py-1.5 rounded-xl font-bold transition flex items-center justify-center gap-1.5 mx-auto border cursor-pointer shadow-xs ${
                             isAcademic
                               ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-200'
                               : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
                           }`}
-                          title="انقر للتبديل بين أكاديمي (أولوية) وإداري (إسناد)"
+                          title="انقر للتبديل بين أكاديمي (نصاب تعاقدي ملزم) وإداري (سقف أقصى مساند)"
                         >
                           {isAcademic ? (
                             <>
                               <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
-                              <span>🎓 أكاديمي</span>
+                              <span>🎓 أكاديمي (ملزم)</span>
                             </>
                           ) : (
                             <>
                               <Briefcase className="w-3.5 h-3.5 text-amber-600" />
-                              <span>💼 إداري</span>
+                              <span>💼 إداري (سقف)</span>
                             </>
                           )}
                         </button>

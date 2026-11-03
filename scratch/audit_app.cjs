@@ -394,21 +394,23 @@ async function runAsyncTests() {
   // Verify consecutive pairings count is positive
   assert(distribution.summary.consecutivePairsCount > 0, `تشكيل جلسات متتابعة مريحة (1+2 أو 2+3): ${distribution.summary.consecutivePairsCount} ثنائية متصلة`);
 
-  // Verify no 1 and 3 gaps across all proctors
+  // Verify no 1 and 3 gaps across all academic proctors
   let gapFound = false;
   distribution.proctorStats.forEach(p => {
-    const daysSessions = {};
-    p.assignments.forEach(a => {
-      if (!daysSessions[a.date]) daysSessions[a.date] = new Set();
-      daysSessions[a.date].add(a.sessionNumber);
-    });
-    Object.entries(daysSessions).forEach(([date, set]) => {
-      if (set.has(1) && set.has(3) && !set.has(2)) {
-        gapFound = true;
-      }
-    });
+    if (p.type === 'academic') {
+      const daysSessions = {};
+      p.assignments.forEach(a => {
+        if (!daysSessions[a.date]) daysSessions[a.date] = new Set();
+        daysSessions[a.date].add(a.sessionNumber);
+      });
+      Object.entries(daysSessions).forEach(([date, set]) => {
+        if (set.has(1) && set.has(3) && !set.has(2)) {
+          gapFound = true;
+        }
+      });
+    }
   });
-  assert(!gapFound, 'التأكد من عدم وجود أي مراقب مسند للجلسة الأولى والثالثة مع ترك الثانية فارغة');
+  assert(!gapFound, 'التأكد من عدم وجود أي مراقب أكاديمي مسند للجلسة الأولى والثالثة مع ترك الثانية فارغة');
 
   // -------------------------------------------------------------
   // Summary
