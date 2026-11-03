@@ -65,6 +65,38 @@
   tfoot {
     display: table-footer-group;
   }
+
+  /* Standard vs A3 Matrix Print Mode Rules */
+  body:not(.printing-a3-mode) .print-area-matrix-a3 {
+    display: none !important;
+  }
+
+  body.printing-a3-mode {
+    font-size: 7.5pt !important;
+  }
+
+  body.printing-a3-mode .print-area-standard {
+    display: none !important;
+  }
+
+  body.printing-a3-mode .print-area-matrix-a3 {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.printing-a3-mode .a3-matrix-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  body.printing-a3-mode .a3-matrix-table th,
+  body.printing-a3-mode .a3-matrix-table td {
+    padding: 2.5px 2px !important;
+    font-size: 7.2pt !important;
+    border: 1px solid #64748b !important;
+  }
 }
 
 @media screen {
