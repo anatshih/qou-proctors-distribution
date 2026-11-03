@@ -37,162 +37,169 @@ export function runProctorDistribution(scheduleDays, proctorsList) {
       dailySessions: {} // date -> Set of session numbers assigned today
     }));
 
-  let totalSlots = 0;
-  let filledSlots = 0;
-  const unassignedSlots = [];
-
-  // Pre-calculate total slots across all days for dynamic academic quota reservation
-  let totalAvailableSlots = 0;
-  days.forEach(day => {
+  // -------------------------------------------------------------
+  // STEP 1: Flatten All Slots & Pre-Calculate Session Densities
+  // -------------------------------------------------------------
+  const allSlots = [];
+  days.forEach((day, dayIndex) => {
     (day.sessions || []).forEach(session => {
+      const sessionNum = Number(session.sessionNumber) || 1;
       (session.rooms || []).forEach(roomObj => {
-        totalAvailableSlots += Math.max(1, Number(roomObj.capacity) || 1);
+        const capacity = Math.max(1, Number(roomObj.capacity) || 1);
+        roomObj.capacity = capacity;
+        roomObj.assignedProctors = [];
+        for (let slot = 0; slot < capacity; slot++) {
+          allSlots.push({
+            dayIndex,
+            date: day.date,
+            dayName: day.dayName,
+            sessionNumber: sessionNum,
+            roomObj,
+            slotIndex: slot,
+            sessionDensity: session.rooms.length
+          });
+        }
       });
     });
   });
 
-  let currentSlotProgress = 0;
+  const totalSlots = allSlots.length;
+  let filledSlots = 0;
+  const unassignedSlots = [];
 
-  // Iterate over each day
-  days.forEach((day, dayIndex) => {
-    const dayDate = day.date;
-    const dayName = day.dayName;
+  // Global Session Proctor Set to strictly forbid any double-booking
+  const sessionProctorMap = new Map();
+  const getProctorSet = (date, sNum) => {
+    const key = `${date}_s${sNum}`;
+    if (!sessionProctorMap.has(key)) sessionProctorMap.set(key, new Set());
+    return sessionProctorMap.get(key);
+  };
 
-    // Iterate over each session of the day (Session 1, 2, 3...)
-    (day.sessions || []).forEach(session => {
-      const sessionNum = Number(session.sessionNumber) || 1;
-      
-      // Track proctors assigned in this specific session to avoid double-booking
-      const proctorsInThisSession = new Set();
+  // -------------------------------------------------------------
+  // STEP 2: Smart Bottleneck-First / Constraint Density Sorting
+  // Peak bottleneck sessions (e.g. Day 12 with 21 rooms, Day 3 with 25 rooms)
+  // are scheduled FIRST to prevent proctor quotas from depleting prematurely.
+  // -------------------------------------------------------------
+  allSlots.sort((a, b) => {
+    if (b.sessionDensity !== a.sessionDensity) {
+      return b.sessionDensity - a.sessionDensity;
+    }
+    if (b.dayIndex !== a.dayIndex) {
+      return b.dayIndex - a.dayIndex;
+    }
+    return a.sessionNumber - b.sessionNumber;
+  });
 
-      (session.rooms || []).forEach(roomObj => {
-        // Multi-proctor support: check capacity (default to 1)
-        const capacity = Math.max(1, Number(roomObj.capacity) || 1);
-        roomObj.capacity = capacity;
-        roomObj.assignedProctors = [];
+  // -------------------------------------------------------------
+  // STEP 3: Assign Proctors with Academic Obligation & Administrative Equality
+  // -------------------------------------------------------------
+  allSlots.forEach(slotItem => {
+    const { date, dayName, sessionNumber, roomObj, dayIndex, slotIndex } = slotItem;
+    const proctorsInThisSession = getProctorSet(date, sessionNumber);
 
-        for (let slot = 0; slot < capacity; slot++) {
-          totalSlots++;
-          currentSlotProgress++;
-          const slotsRemainingAhead = totalAvailableSlots - currentSlotProgress;
+    // Filter candidates based on inviolable constraints
+    const eligibleCandidates = activeProctors.filter(proctor => {
+      // Hard 1: Quota check
+      if (proctor.assignedCount >= proctor.quota) return false;
 
-          // Dynamic Academic Quota Reservation:
-          // If remaining slots <= total academic quota needed, strictly reserve slots for academics
-          // to guarantee 100% academic fulfillment with zero difference.
-          const totalAcademicQuotaNeeded = activeProctors
-            .filter(p => p.type === 'academic')
-            .reduce((sum, p) => sum + (p.quota - p.assignedCount), 0);
+      // Hard 2: No double-booking in this same session (physically impossible)
+      if (proctorsInThisSession.has(proctor.id)) return false;
 
-          const reserveStrictlyForAcademics = slotsRemainingAhead <= (totalAcademicQuotaNeeded + 1);
+      // Hard 3: User-defined exceptions check (date_all or date_sX) - Inviolable
+      const dayWideKey = `${date}_all`;
+      const sessionKey = `${date}_s${sessionNumber}`;
+      if (proctor.exceptions.has(dayWideKey) || proctor.exceptions.has(sessionKey)) {
+        return false;
+      }
 
-          // -------------------------------------------------------------
-          // STEP 1: Filter Candidates Based on Inviolable Constraints
-          // -------------------------------------------------------------
-          const eligibleCandidates = activeProctors.filter(proctor => {
-            // Hard 1: Quota check
-            if (proctor.assignedCount >= proctor.quota) return false;
+      // Hard 4: Explicit Session 3 exclusion check - Inviolable
+      if (sessionNumber === 3 && proctor.excludeSession3) {
+        return false;
+      }
 
-            // Hard 2: No double-booking in this same session (physically impossible)
-            if (proctorsInThisSession.has(proctor.id)) return false;
+      // Hard 5: Daily session limits
+      const todayCount = proctor.dailySessionCount[date] || 0;
+      if (proctor.type === 'administrative') {
+        // Administrative staff: strict MAX 2 sessions per day (to protect office work)
+        if (todayCount >= 2) return false;
+      } else {
+        // Academic staff: Max 3 sessions per day (permitted when needed to complete 100% quota)
+        if (todayCount >= 3) return false;
+      }
 
-            // Hard 3: User-defined exceptions check (date_all or date_sX) - Inviolable
-            const dayWideKey = `${dayDate}_all`;
-            const sessionKey = `${dayDate}_s${sessionNum}`;
-            if (proctor.exceptions.has(dayWideKey) || proctor.exceptions.has(sessionKey)) {
-              return false;
-            }
+      return true;
+    });
 
-            // Hard 4: Explicit Session 3 exclusion check - Inviolable
-            if (sessionNum === 3 && proctor.excludeSession3) {
-              return false;
-            }
-
-            // Hard 5: Academic Reservation Guard
-            if (reserveStrictlyForAcademics && proctor.type === 'administrative') {
-              return false;
-            }
-
-            // Hard 6: Daily session limits
-            const todayCount = proctor.dailySessionCount[dayDate] || 0;
-            if (proctor.type === 'administrative') {
-              // Administrative staff: strict MAX 2 sessions per day (to protect office work)
-              if (todayCount >= 2) return false;
-            } else {
-              // Academic staff: Max 3 sessions per day (permitted when needed to complete 100% quota)
-              if (todayCount >= 3) return false;
-            }
-
-            return true;
-          });
-
-          if (eligibleCandidates.length === 0) {
-            unassignedSlots.push({
-              date: dayDate,
-              dayName: dayName,
-              session: sessionNum,
-              room: roomObj.room,
-              slotIndex: slot + 1,
-              reason: activeProctors.every(p => p.assignedCount >= p.quota)
-                ? 'استنفاد جميع أنصبة المراقبين'
-                : 'تعارض زمني أو استثناءات أو قيود عدم الفراغ بين الجلسات'
-            });
-            continue;
-          }
-
-          // -------------------------------------------------------------
-          // STEP 2: Candidate Ranking & Selection
-          // -------------------------------------------------------------
-          eligibleCandidates.sort((a, b) => {
-            const scoreA = calculateCandidateScore(a, dayDate, sessionNum);
-            const scoreB = calculateCandidateScore(b, dayDate, sessionNum);
-
-            // Highest score first
-            if (scoreB !== scoreA) {
-              return scoreB - scoreA;
-            }
-
-            // Tie-breaker 1: Total remaining quota needed
-            const remainingA = a.quota - a.assignedCount;
-            const remainingB = b.quota - b.assignedCount;
-            if (remainingB !== remainingA) {
-              return remainingB - remainingA;
-            }
-
-            // Tie-breaker 2: Slight random jitter
-            return Math.random() - 0.5;
-          });
-
-          const selected = eligibleCandidates[0];
-
-          // -------------------------------------------------------------
-          // STEP 4: Assign Proctor & Update State
-          // -------------------------------------------------------------
-          roomObj.assignedProctors.push(selected.name);
-          selected.assignedCount++;
-          proctorsInThisSession.add(selected.id);
-          selected.daysWorked.add(dayDate);
-
-          selected.dailySessionCount[dayDate] = (selected.dailySessionCount[dayDate] || 0) + 1;
-          if (!selected.dailySessions[dayDate]) {
-            selected.dailySessions[dayDate] = new Set();
-          }
-          selected.dailySessions[dayDate].add(sessionNum);
-
-          selected.assignments.push({
-            dayIndex,
-            date: dayDate,
-            dayName: dayName,
-            sessionNumber: sessionNum,
-            room: roomObj.room,
-            slotIndex: slot + 1
-          });
-
-          filledSlots++;
-        }
-
-        // Keep single string proctor property synchronized for backwards compatibility
-        roomObj.proctor = roomObj.assignedProctors.join(' / ');
+    if (eligibleCandidates.length === 0) {
+      unassignedSlots.push({
+        date,
+        dayName,
+        session: sessionNumber,
+        room: roomObj.room,
+        slotIndex: slotIndex + 1,
+        reason: activeProctors.every(p => p.assignedCount >= p.quota)
+          ? 'استنفاد جميع أنصبة المراقبين'
+          : 'تعارض زمني أو استثناءات أو قيود الجلسات'
       });
+      return;
+    }
+
+    // Candidate Ranking & Selection
+    eligibleCandidates.sort((a, b) => {
+      const scoreA = calculateCandidateScore(a, date, sessionNumber);
+      const scoreB = calculateCandidateScore(b, date, sessionNumber);
+
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+
+      const remA = a.quota - a.assignedCount;
+      const remB = b.quota - b.assignedCount;
+      if (remB !== remA) {
+        return remB - remA;
+      }
+
+      return Math.random() - 0.5;
+    });
+
+    const selected = eligibleCandidates[0];
+    roomObj.assignedProctors.push(selected.name);
+    selected.assignedCount++;
+    proctorsInThisSession.add(selected.id);
+    selected.daysWorked.add(date);
+
+    selected.dailySessionCount[date] = (selected.dailySessionCount[date] || 0) + 1;
+    if (!selected.dailySessions[date]) {
+      selected.dailySessions[date] = new Set();
+    }
+    selected.dailySessions[date].add(sessionNumber);
+
+    selected.assignments.push({
+      dayIndex,
+      date,
+      dayName,
+      sessionNumber,
+      room: roomObj.room,
+      slotIndex: slotIndex + 1
+    });
+
+    filledSlots++;
+  });
+
+  // Keep single string proctor property synchronized for backwards compatibility
+  days.forEach(day => {
+    (day.sessions || []).forEach(session => {
+      (session.rooms || []).forEach(roomObj => {
+        roomObj.proctor = (roomObj.assignedProctors || []).join(' / ');
+      });
+    });
+  });
+
+  // Chronologically sort proctor assignments for clean printing
+  activeProctors.forEach(p => {
+    p.assignments.sort((a, b) => {
+      if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+      return a.sessionNumber - b.sessionNumber;
     });
   });
 
