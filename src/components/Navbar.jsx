@@ -24,7 +24,7 @@ export default function Navbar({
       stepNum: 1,
       title: '1. جدول القاعات والسعات',
       subtitle: workflowStats?.hasSchedule 
-        ? `${workflowStats.totalSlots} شاغر مراقبة (${workflowStats.daysCount} أيام)` 
+        ? `${workflowStats.totalSlots} شاغر (${workflowStats.daysCount} أيام)` 
         : 'رفع الإكسل وتحديد السعات',
       isCompleted: Boolean(workflowStats?.hasSchedule && workflowStats?.totalSlots > 0),
       icon: '🏢'
@@ -37,7 +37,7 @@ export default function Navbar({
         ? 'الأنصبة مطابقة 100% ✓' 
         : workflowStats?.hasSchedule 
         ? `المحدد: ${workflowStats.totalQuotas} من ${workflowStats.totalSlots}` 
-        : 'تحديد الأنصبة والاستثناءات',
+        : 'تحديد الأنصبة والتصنيف',
       isCompleted: Boolean(workflowStats?.isQuotaMatched),
       icon: '👥'
     },
@@ -47,15 +47,23 @@ export default function Navbar({
       title: '3. التوزيع الآلي الذكي',
       subtitle: workflowStats?.isDistributed 
         ? 'تم التوزيع بنجاح ✓' 
-        : 'فحص الجاهزية وإطلاق التوزيع',
+        : 'فحص وإطلاق التوزيع',
       isCompleted: Boolean(workflowStats?.isDistributed),
       icon: '⚡'
     },
     {
-      id: 'results',
+      id: 'review',
       stepNum: 4,
-      title: '4. النتائج والطباعة المعتمدة',
-      subtitle: 'التبديل المباشر وتصدير الكشوفات',
+      title: '4. المراجعة والتعيين اليدوي',
+      subtitle: 'سد الشواغر والتعيين المباشر',
+      isCompleted: Boolean(workflowStats?.isDistributed),
+      icon: '✍️'
+    },
+    {
+      id: 'results',
+      stepNum: 5,
+      title: '5. النتائج والطباعة المعتمدة',
+      subtitle: 'تصدير الجداول والطباعة',
       isCompleted: Boolean(workflowStats?.isDistributed),
       icon: '🖨️'
     }
@@ -144,9 +152,9 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Main Workflow Stepper Navigation (4 Sequential Steps) */}
+      {/* Main Workflow Stepper Navigation (5 Sequential Steps) */}
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-2.5">
-        <nav className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {steps.map((tab) => {
             const isActive = activeTab === tab.id;
             const isCompleted = tab.isCompleted;

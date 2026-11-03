@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import ProctorsTab from './components/ProctorsTab';
 import ScheduleTab from './components/ScheduleTab';
 import DistributionTab from './components/DistributionTab';
+import ReviewTab from './components/ReviewTab';
 import ResultsTab from './components/ResultsTab';
 import SettingsModal from './components/SettingsModal';
 
@@ -277,7 +278,29 @@ export default function App() {
           />
         )}
 
-        {/* Step 4: Results & Print-ready Views */}
+        {/* Step 4: Review & Manual Proctor Assignment */}
+        {activeTab === 'review' && (
+          <ReviewTab
+            scheduleDays={activeProject.scheduleDays || []}
+            setScheduleDays={(newDays) => {
+              updateActiveProject(prev => ({
+                ...prev,
+                scheduleDays: typeof newDays === 'function' ? newDays(prev.scheduleDays || []) : newDays
+              }));
+            }}
+            proctors={activeProject.proctors || []}
+            setProctors={(newProctors) => {
+              updateActiveProject(prev => ({
+                ...prev,
+                proctors: typeof newProctors === 'function' ? newProctors(prev.proctors || []) : newProctors
+              }));
+            }}
+            totalRoomSlots={activeProject.totalRoomSlots || 0}
+            onNavigateNext={setActiveTab}
+          />
+        )}
+
+        {/* Step 5: Results & Print-ready Views */}
         {activeTab === 'results' && (
           <ResultsTab
             scheduleDays={activeProject.scheduleDays || []}

@@ -176,10 +176,10 @@ export default function DistributionTab({
             {distributionResult && (
               <button
                 type="button"
-                onClick={() => setActiveTab('results')}
+                onClick={() => setActiveTab('review')}
                 className="bg-white/15 hover:bg-white/25 text-white font-bold text-sm px-6 py-4 rounded-2xl border border-white/20 transition flex items-center gap-2 cursor-pointer"
               >
-                <span>الانتقال إلى كشوفات النتائج والطباعة</span>
+                <span>الانتقال للخطوة 4: المراجعة والتعيين اليدوي</span>
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
@@ -281,10 +281,10 @@ export default function DistributionTab({
           <div className="pt-2 text-center">
             <button
               type="button"
-              onClick={() => setActiveTab('results')}
+              onClick={() => setActiveTab('review')}
               className="bg-qou-primary hover:bg-qou-dark text-white font-bold text-sm px-8 py-3 rounded-xl shadow-md shadow-qou-primary/20 transition inline-flex items-center gap-2 cursor-pointer"
             >
-              <span>استعراض الجداول الكاملة والطباعة بعد الفلترة</span>
+              <span>الانتقال للخطوة 4: المراجعة وسد الشواغر يدوياً</span>
               <ArrowLeft className="w-4 h-4" />
             </button>
           </div>

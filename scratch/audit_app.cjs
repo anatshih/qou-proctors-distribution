@@ -36,6 +36,7 @@ const requiredFiles = [
   'src/components/ScheduleTab.jsx',
   'src/components/ProctorsTab.jsx',
   'src/components/DistributionTab.jsx',
+  'src/components/ReviewTab.jsx',
   'src/components/ResultsTab.jsx',
   'src/components/QuickSwapModal.jsx',
   'src/components/ExceptionsModal.jsx',
@@ -278,7 +279,8 @@ const navbarContent = fs.readFileSync(navbarPath, 'utf8');
 assert(navbarContent.includes('1. جدول القاعات والسعات'), 'الخطوة 1 مرقمة في شريط التنقل');
 assert(navbarContent.includes('2. كادر المراقبين والأنصبة'), 'الخطوة 2 مرقمة في شريط التنقل');
 assert(navbarContent.includes('3. التوزيع الآلي الذكي'), 'الخطوة 3 مرقمة في شريط التنقل');
-assert(navbarContent.includes('4. النتائج والطباعة المعتمدة'), 'الخطوة 4 مرقمة في شريط التنقل');
+assert(navbarContent.includes('4. المراجعة والتعيين اليدوي'), 'الخطوة 4 (المراجعة والتعيين اليدوي) مرقمة في شريط التنقل');
+assert(navbarContent.includes('5. النتائج والطباعة المعتمدة'), 'الخطوة 5 (النتائج والطباعة المعتمدة) مرقمة في شريط التنقل');
 
 // -------------------------------------------------------------
 // TEST SUITE 6: Human-Comfort Proctor Constraints & Smart Heuristics
