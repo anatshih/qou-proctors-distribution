@@ -257,10 +257,48 @@
     line-height: 1.15 !important;
   }
 
-  /* Portal Entry Guide Print Mode (A4 Portrait) */
+  /* Portal Entry Guide Print Mode (A4 Portrait - Never Split Sessions) */
+  body.printing-portal-entry {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 8pt !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
   body.printing-portal-entry .portal-day-section {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    margin-bottom: 6mm !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  /* CRITICAL: Never split a session block across two pages! */
+  body.printing-portal-entry .portal-session-block {
     page-break-inside: avoid !important;
-    margin-bottom: 8mm !important;
+    break-inside: avoid !important;
+    margin-bottom: 4mm !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  body.printing-portal-entry .portal-session-block table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.printing-portal-entry .portal-session-block table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body.printing-portal-entry .portal-session-block table th,
+  body.printing-portal-entry .portal-session-block table td {
+    padding: 2px 4px !important;
+    font-size: 7.8pt !important;
+    line-height: 1.15 !important;
   }
 
   /* Executive Summary Print Mode (A4 Portrait Single Page) */
@@ -273,5 +311,10 @@
 @media screen {
   .print-only-col {
     display: none;
+  }
+
+  /* Never show dedicated print area on screen */
+  .print-area-assistant {
+    display: none !important;
   }
 }

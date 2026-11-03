@@ -43,7 +43,7 @@ export default function ResultsTab({
   const [selectedAssistantProctorId, setSelectedAssistantProctorId] = useState('');
   const [assistantSearch, setAssistantSearch] = useState('');
   const [assistantRoleFilter, setAssistantRoleFilter] = useState('all'); // 'all' | 'academic' | 'administrative'
-  const [assistantPrintTarget, setAssistantPrintTarget] = useState('single'); // 'single' | 'all'
+  const [assistantPrintTarget, setAssistantPrintTarget] = useState(null); // 'single' | 'all' | null
 
   // Quick Swap Modal state
   const [activeSwapSlot, setActiveSwapSlot] = useState(null);
@@ -556,16 +556,47 @@ export default function ResultsTab({
       @media print {
         @page {
           size: A4 portrait !important;
-          margin: 8mm 6mm 10mm 6mm !important;
+          margin: 6mm 6mm 6mm 6mm !important;
         }
-        body {
-          font-size: 8.5pt !important;
+        html, body {
+          width: 100% !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          font-size: 8pt !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .portal-day-section {
+          page-break-inside: auto !important;
+          break-inside: auto !important;
+          margin-bottom: 5mm !important;
+        }
+        .portal-session-block {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          margin-bottom: 4mm !important;
+        }
+        .portal-session-block table {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+        .portal-session-block table tr {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+        .portal-session-block table th,
+        .portal-session-block table td {
+          padding: 2px 4px !important;
+          font-size: 7.8pt !important;
+          line-height: 1.15 !important;
         }
       }
     `);
 
     document.body.classList.add('printing-portal-entry');
-    setTimeout(() => window.print(), 150);
+    setTimeout(() => window.print(), 200);
 
     const cleanup = () => {
       document.body.classList.remove('printing-portal-entry');
@@ -612,7 +643,7 @@ export default function ResultsTab({
 
     const cleanup = () => {
       document.body.classList.remove('printing-assistant-dossier');
-      setAssistantPrintTarget('single');
+      setAssistantPrintTarget(null);
       const el = document.getElementById(styleId);
       if (el) el.remove();
       window.removeEventListener('afterprint', cleanup);
@@ -1380,15 +1411,29 @@ export default function ResultsTab({
                   {/* Sessions within this Day */}
                   <div className="space-y-4">
                     {dayGroup.sessions.map((sessGroup, sIdx) => (
-                      <div key={sIdx} className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-xs">
+                      <div key={sIdx} className="portal-session-block bg-white rounded-lg border border-slate-200 overflow-hidden shadow-xs">
                         
-                        {/* Session Sub-header */}
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between">
-                          <span className="font-black text-xs text-qou-primary flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5" />
-                            الجلسة الامتحانية رقم ({sessGroup.sessionNumber})
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-bold">
+                        {/* Session Header with Full Day & Session Context */}
+                        <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-slate-800 text-white text-[10.5px] font-black px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                              <span>{dayGroup.dayName}</span>
+                              <span className="font-mono text-slate-200 text-[9.5px]">({dayGroup.date})</span>
+                            </span>
+
+                            <span className="font-black text-xs text-qou-primary flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-qou-primary" />
+                              <span>الجلسة الامتحانية رقم ({sessGroup.sessionNumber})</span>
+                              {sIdx > 0 && (
+                                <span className="text-[9.5px] text-indigo-900 bg-indigo-50 font-bold px-1.5 py-0.5 rounded border border-indigo-200">
+                                  (تابع اليوم)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
+                          <span className="text-[10.5px] text-slate-600 font-bold">
                             {sessGroup.rooms.length} قاعات مجدولة
                           </span>
                         </div>
@@ -1888,15 +1933,15 @@ export default function ResultsTab({
             )}
           </div>
 
-          {/* Dedicated Print Area (Hidden on screen, Active during print) */}
-          <div className="print-area print-area-assistant">
+          {/* Dedicated Print Area (Rendered ONLY during active printing, completely hidden on screen) */}
+          <div className="print-area print-area-assistant hidden print:block">
             {assistantPrintTarget === 'all' ? (
               liveProctorStats.map((proctor, idx) => (
                 <React.Fragment key={proctor.id}>
                   {renderProctorDossierCard(proctor, idx + 1, liveProctorStats.length, true)}
                 </React.Fragment>
               ))
-            ) : currentAssistantProctor ? (
+            ) : assistantPrintTarget === 'single' && currentAssistantProctor ? (
               renderProctorDossierCard(
                 currentAssistantProctor, 
                 liveProctorStats.findIndex(p => p.id === currentAssistantProctor.id) + 1, 
